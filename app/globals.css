@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --color-black: #111111;
+  --color-orange: #ff5a1f;
+  --color-mint: #bdefd8;
+  --color-background: #f7f4ec;
+  --color-surface: #ffffff;
+  --color-border: #d8d5ce;
+  --color-text: #111111;
+  --color-secondary: #6b6b65;
+}
+
+* { box-sizing: border-box; }
+html { overflow-x: hidden; }
+html, body { min-height: 100%; }
+body { margin: 0; background: var(--color-background); color: var(--color-text); font-family: var(--font-paperlogy), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; }
+a { color: inherit; text-decoration: none; }
+button, a { min-height: 44px; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 3px; }
+.bg-page { background: var(--color-background); }
+.bg-surface { background: var(--color-surface); }
+.bg-ink { background: var(--color-black); }
+.bg-orange { background: var(--color-orange); }
+.bg-mint { background: var(--color-mint); }
+.text-ink { color: var(--color-text); }
+.text-secondary { color: var(--color-secondary); }
+.text-orange { color: var(--color-orange); }
+.text-mint { color: var(--color-mint); }
+.border-ui { border-color: var(--color-border); }
+.paper-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; }
+.collage-card { position: relative; overflow: hidden; border: 0; border-radius: 16px 12px 18px 10px; box-shadow: 0 4px 14px rgba(17, 17, 17, 0.06); }
+.collage-card.bg-surface { border: 1px solid #e2ded5; }
+.calendar-card { background: var(--color-black); color: var(--color-surface); border: 2px solid var(--color-black); border-radius: 16px 12px 18px 10px; }
+.mobile-bottom-space { padding-bottom: 88px; }
+@media (min-width: 1024px) { .mobile-bottom-space { padding-bottom: 0; } }

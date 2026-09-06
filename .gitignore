@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+*.log
+.env
+.env.local
+prisma/*.db
+prisma/*.db-journal
+public/fonts/*.{woff,woff2,ttf,otf}
+!.gitkeep
+!public/fonts/Paperlogy-4Regular.ttf
+!public/fonts/Paperlogy-5Medium.ttf
+!public/fonts/Paperlogy-6SemiBold.ttf
+!public/fonts/Paperlogy-7Bold.ttf
+!public/fonts/Paperlogy-8ExtraBold.ttf
+
+tsconfig.tsbuildinfo

@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model FieldDay {
+  id          String   @id @default(cuid())
+  title       String
+  location    String?
+  date        DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  materials   Material[]
+  reports     Report[]
+}
+
+model Material {
+  id          String   @id @default(cuid())
+  type        String
+  title       String
+  description String?
+  filePath    String?
+  capturedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  fieldDayId  String?
+  fieldDay    FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  title       String
+  status      String   @default("draft")
+  content     String?
+  updatedAt   DateTime @updatedAt
+  fieldDayId  String?
+  fieldDay    FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+}
