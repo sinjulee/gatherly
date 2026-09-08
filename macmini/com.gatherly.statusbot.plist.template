@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.gatherly.statusbot</string>
+  <key>ProgramArguments</key><array><string>/bin/sh</string><string>/Users/sinjulee/Projects/Gatherly/macmini/run-status-bot.sh</string></array>
+  <key>WorkingDirectory</key><string>/Users/sinjulee/Projects/Gatherly</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>StandardOutPath</key><string>/Users/sinjulee/Projects/Gatherly/logs/status-bot.stdout.log</string>
+  <key>StandardErrorPath</key><string>/Users/sinjulee/Projects/Gatherly/logs/status-bot.stderr.log</string>
+</dict></plist>

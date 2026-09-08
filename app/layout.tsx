@@ -24,5 +24,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body className={paperlogy.variable}><AppShell>{children}</AppShell>{process.env.NODE_ENV === "production" && <script id="production-service-worker" dangerouslySetInnerHTML={{ __html: "if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js'))" }} />}</body></html>;
+  const serviceWorkerScript = process.env.NODE_ENV === "production"
+    ? "if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}))"
+    : "if('serviceWorker'in navigator)window.addEventListener('load',async()=>{try{const had=!!navigator.serviceWorker.controller;const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()));if('caches'in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('gatherly-')).map(k=>caches.delete(k)))}const key='gatherly-sw-reset';if(had&&!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');location.reload()}else if(!had){sessionStorage.removeItem(key)}}catch{}})";
+  return <html lang="ko"><body className={paperlogy.variable}><AppShell>{children}</AppShell><script id="service-worker-lifecycle" dangerouslySetInnerHTML={{ __html: serviceWorkerScript }} /></body></html>;
 }

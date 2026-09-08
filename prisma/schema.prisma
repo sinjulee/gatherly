@@ -8,35 +8,53 @@ datasource db {
 }
 
 model FieldDay {
-  id          String   @id @default(cuid())
+  id          String     @id @default(uuid())
   title       String
   location    String?
-  date        DateTime @default(now())
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  fieldDate   DateTime   @default(now()) @map("date")
+  description String?    @map("notes")
+  status      String     @default("ACTIVE")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
   materials   Material[]
   reports     Report[]
+
+  @@index([status, deletedAt])
 }
 
 model Material {
-  id          String   @id @default(cuid())
-  type        String
-  title       String
-  description String?
-  filePath    String?
-  capturedAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  fieldDayId  String?
-  fieldDay    FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  id             String    @id @default(uuid())
+  type           String
+  title          String
+  description    String?
+  content        String?
+  originalName   String?
+  storedName     String?
+  relativePath   String?   @map("filePath")
+  mimeType       String?
+  sizeBytes      Int?
+  sha256         String?
+  uploadStatus   String    @default("STORED")
+  uploadError    String?
+  clientUploadId String?   @unique
+  capturedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  fieldDayId     String?
+  fieldDay       FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+
+  @@index([fieldDayId, deletedAt, createdAt])
+  @@index([type, uploadStatus])
 }
 
 model Report {
-  id          String   @id @default(cuid())
-  title       String
-  status      String   @default("draft")
-  content     String?
-  updatedAt   DateTime @updatedAt
-  fieldDayId  String?
-  fieldDay    FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  id         String    @id @default(cuid())
+  title      String
+  status     String    @default("draft")
+  content    String?
+  updatedAt  DateTime  @updatedAt
+  fieldDayId String?
+  fieldDay   FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
 }

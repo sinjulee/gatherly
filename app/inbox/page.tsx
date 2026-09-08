@@ -1,5 +1,12 @@
-import { Camera, FileText, Mic, Play, Search, Upload } from "lucide-react";
-import { AddButton, PageHeader } from "@/components/app-shell";
+import { PageHeader } from "@/components/app-shell";
+import { InboxWorkspace } from "@/components/inbox-workspace";
+import { prisma } from "@/lib/prisma";
+import type { FieldDaySummary } from "@/components/field-day-manager";
 
-const materials = [{ type: "음성", title: "시장 앞 상인 인터뷰", tag: "상인 · 인터뷰", meta: "00:42 · 오늘 14:20", icon: Mic, color: "bg-orange" }, { type: "사진", title: "붉은 벽돌 건물 외관", tag: "건축 · 변화", meta: "3024 × 4032 · 오늘 13:55", icon: Camera, color: "bg-mint" }, { type: "영상", title: "골목 소리 풍경", tag: "소리 · 골목", meta: "01:18 · 오늘 13:10", icon: Play, color: "bg-page" }, { type: "텍스트", title: "카페에서 들은 이야기", tag: "사람 · 메모", meta: "메모 3줄 · 어제", icon: FileText, color: "bg-surface" }];
-export default function Inbox() { return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10"><PageHeader eyebrow="12 ITEMS · INBOX" title="자료수집함" description="현장에서 모은 조각을 종류와 맥락별로 정리합니다." action={<AddButton>자료 추가</AddButton>} /><div className="mt-7 flex flex-col gap-3 sm:flex-row"><div className="flex min-h-12 flex-1 items-center gap-3 rounded-xl border border-ui bg-surface px-4 py-3 text-sm text-secondary"><Search size={17} />자료 검색</div><button className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-ui bg-surface px-4 py-3 text-sm font-semibold"><Upload size={17} />파일 가져오기</button></div><div className="mt-5 grid gap-3">{materials.map(({ type, title, tag, meta, icon: Icon, color }) => <article key={title} className="paper-card flex min-w-0 items-center gap-4 p-4"><span className={"flex h-12 w-12 shrink-0 items-center justify-center rounded-xl " + color}><Icon size={21} /></span><div className="min-w-0 flex-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className="shrink-0 text-xs font-extrabold text-orange">{type}</span><h2 className="truncate font-semibold">{title}</h2></div><div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-secondary"><span>{tag}</span><span>{meta}</span></div></div><button className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-orange hover:bg-page">정리하기</button></article>)}</div></div> }
+export const dynamic = "force-dynamic";
+
+export default async function Inbox() {
+  const rows = await prisma.fieldDay.findMany({ where: { deletedAt: null }, orderBy: [{ status: "asc" }, { fieldDate: "desc" }], include: { _count: { select: { materials: { where: { deletedAt: null, uploadStatus: "STORED" } } } } } });
+  const projects: FieldDaySummary[] = rows.map((project) => ({ id: project.id, title: project.title, description: project.description, location: project.location, fieldDate: project.fieldDate.toISOString(), status: project.status, _count: project._count }));
+  return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10"><PageHeader eyebrow="INBOX · SAFE CAPTURE" title="자료수집함" description="사진·영상·음성·텍스트를 파일별로 저장 확인하며 관리합니다." /><InboxWorkspace projects={projects} /></div>;
+}
