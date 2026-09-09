@@ -3,331 +3,361 @@
 ## 1. 문서 정보
 
 - 제품명: Gatherly
-- 문서 버전: 1.0
-- 개발 단계: 1차 개발 완료
-- 기준일: 2026-09-09
-- 기본 언어: 한국어
-- 운영 환경: Mac mini 로컬 서버, Tailscale 내부 접근
-- 데이터베이스: Prisma + SQLite
-- 운영 포트: 3001
+- 문서 버전: 2.0
+- 기준일: 2026-09-10
+- 제품 정의: Field Research OS
+- 기본 운영 환경: iPhone PWA + Mac mini 로컬 서버 + Tailscale
+- 데이터 저장: Prisma + SQLite + 로컬 파일 저장소
+- 외부 연구 엔진: NotebookLM(구독형 사용자 서비스)
+- 외부 문서 허브: Google Drive / Google Docs
 
-## 2. 제품 개요
+## 2. 제품 비전
 
-Gatherly는 현장 조사 중 수집한 사진, 영상, 음성, 텍스트 자료를 안전하게 모으고, 현장별로 정리해 보고서 작성으로 연결하는 로컬 워크스페이스다.
+Gatherly는 출장, 전시회, 시장조사, 경쟁사 조사 등 현장에서 발생하는 사진·영상·음성·텍스트 정보를 빠르고 안전하게 수집하고, 이를 신뢰 가능한 Research Evidence로 구조화하여 NotebookLM 기반 심층 연구·분석으로 연결하고, 결과를 다시 Gatherly에서 검토·수정·버전 관리하는 Field Research OS다.
 
-현장 사용자는 모바일 브라우저에서 자료를 빠르게 남기고, Mac mini에 설치된 Gatherly 서버는 SQLite 메타데이터와 로컬 저장소에 자료를 보관한다. 외부 SaaS 데이터베이스는 사용하지 않는다.
+Gatherly는 자체 범용 Deep Research 엔진을 구현하지 않는다. 대신 현장 자료의 맥락 보존, Evidence 관리, NotebookLM 입력 품질 최적화, 연구 결과의 프로젝트·보고서 수명주기 관리에 집중한다.
 
-## 3. 문제 정의
+## 3. 핵심 역할 분담
 
-- 현장 자료가 여러 기기와 앱에 흩어져 조사 맥락이 끊긴다.
-- 업로드 중 네트워크가 끊기면 자료 저장 여부를 확인하기 어렵다.
-- 파일 원본과 SQLite 메타데이터를 한 운영 단위로 백업해야 한다.
-- 별도 관리자 웹페이지 없이도 Mac mini와 Gatherly 상태를 확인할 필요가 있다.
-- 운영 중 앱이 중단됐을 때 앱 프로세스만 안전하게 복구할 수 있어야 한다.
+### 3.1 Gatherly
 
-## 4. 목표
+- 현장 프로젝트 관리
+- 사진·영상·음성·텍스트·링크·문서 수집
+- 원본 자료와 조사 맥락 보존
+- Research Inbox 정리·분류·검토
+- NotebookLM용 Source Bundle 생성
+- Google Drive 동기화
+- Analysis Brief 작성 및 버전 관리
+- NotebookLM 연결 화면 제공
+- NotebookLM 결과 문서 가져오기
+- 보고서 수정·버전 비교·최종본 관리
+- Evidence Lineage 추적
 
-### 4.1 1차 목표
+### 3.2 NotebookLM
 
-1. 현장(Field Day)을 만들고 진행 상태를 관리한다.
-2. 사진·영상·음성·텍스트 자료를 현장별로 수집한다.
-3. 업로드 파일을 로컬 `storage/uploads`에 안전하게 저장한다.
-4. SQLite에 자료 메타데이터를 저장하고 삭제되지 않은 자료를 조회한다.
-5. 자료수집함에서 저장 상태와 자료 상세를 확인한다.
-6. 아이폰 Telegram에서 Gatherly 앱과 Mac mini 상태를 읽기 전용으로 확인한다.
-7. 앱 중단 시 허용된 운영자만 고정 launchd 서비스 복구를 요청할 수 있도록 준비한다.
-8. Git 커밋이나 외부 배포 없이 Mac mini에서 직접 운영할 수 있는 문서를 제공한다.
+- Source 기반 질의응답
+- 심층 연구 및 분석
+- 추가 외부 조사
+- 비교·종합·인사이트 도출
+- 분석 초안 및 보고서 초안 생성
 
-### 4.2 성공 기준
+### 3.3 Mac mini
 
-- 현장 하나를 생성하고 상태를 변경할 수 있다.
-- 사진·영상·음성·텍스트 자료를 업로드하거나 저장할 수 있다.
-- 업로드 완료 자료가 SQLite와 로컬 파일로 함께 확인된다.
-- Telegram `/status`가 앱, SQLite, 저장소, 시스템 상태를 한국어로 표시한다.
-- 상태 봇이 앱 중단과 상태 봇 자체 중단을 구분해 안내한다.
-- 상태 점검 실패가 봇 프로세스 전체 종료로 이어지지 않는다.
-- `npm run lint`, `npm run typecheck`, `npm run build`가 통과한다.
+- Gatherly 웹 앱 운영
+- 파일 저장 및 변환
+- Source 문서 생성·정제
+- Google Drive 동기화 작업
+- 문서 후처리
+- 상태 봇 및 운영 자동화
 
-## 5. 사용자 및 사용 시나리오
+Mac mini/Codex는 Gatherly의 핵심 Research Engine 역할을 맡지 않는다.
 
-### 5.1 현장 조사자
+## 4. 핵심 사용자 흐름
 
-- 오늘의 현장에서 진행 중인 현장을 확인한다.
-- 현장명, 위치, 날짜, 설명을 입력한다.
-- 사진·영상·음성·텍스트를 자료수집함에 추가한다.
-- 저장 완료·대기·실패 상태를 확인한다.
+1. 사용자가 조사 프로젝트를 생성한다.
+2. 현장에서 사진·영상·음성·텍스트·링크·문서를 빠르게 저장한다.
+3. 자료는 Research Inbox에 누적된다.
+4. 사용자가 자료를 검토·수정·삭제·태깅·제외한다.
+5. Gatherly가 NotebookLM 분석에 적합한 Source Bundle을 생성한다.
+6. Source Bundle을 프로젝트 전용 Google Drive 폴더에 동기화한다.
+7. 사용자가 분석 목적과 주요 질문을 Analysis Brief로 작성한다.
+8. Gatherly에서 NotebookLM을 열어 해당 프로젝트 Notebook에서 분석을 수행한다.
+9. NotebookLM 결과를 Google Docs로 내보낸다.
+10. Gatherly가 결과 문서를 Research Result로 가져온다.
+11. 사용자가 결과를 검토하고 문장 수정 또는 추가 연구 요청을 남긴다.
+12. 수정 유형에 따라 Google Docs 편집 또는 새로운 Analysis Brief Revision으로 재연구한다.
+13. 최종 Report Version을 확정하고 Google Docs/PDF로 활용한다.
 
-### 5.2 운영자
+## 5. 주요 기능
 
-- Mac mini에서 Gatherly 서버를 실행한다.
-- Telegram 전용 상태 봇에서 `/start`, `/status`, `/help`를 사용한다.
-- 앱 health, DB, 저장소, 디스크, 메모리, uptime을 확인한다.
-- launchd 등록이 완료된 경우에만 앱 복구 버튼을 사용한다.
+### 5.1 Field Project
 
-## 6. 기능 요구사항
+- 현장명, 설명, 장소, 날짜, 상태 관리
+- 상태: ACTIVE, COMPLETED, ARCHIVED
+- soft delete
+- 프로젝트별 자료 수, 정리 진행률, NotebookLM 준비 상태, 보고서 상태 표시
 
-### 6.1 오늘의 현장
+### 5.2 Field Capture
 
-- 진행 중인 현장과 최근 현장을 표시한다.
-- 현장별 저장 자료 수를 표시한다.
-- 저장 자료, 저장 대기·실패 자료, 보고서 수를 요약한다.
-- 제목 아래에 별도 자료수집 검정 버튼을 표시하지 않는다.
-- 터치 영역은 모바일 현장 사용에 적합한 크기를 유지한다.
+지원 입력:
 
-### 6.2 현장 관리
+- 사진
+- 영상
+- 음성
+- 텍스트
+- 웹 링크
+- 문서
 
-- 현장 생성
-- 현장 제목, 위치, 날짜, 설명 입력
-- 상태: `ACTIVE`, `COMPLETED`, `ARCHIVED`
-- 삭제 시 즉시 물리 삭제하지 않고 `deletedAt`을 이용한 soft delete
-- 삭제된 현장과 자료는 기본 목록에서 제외
+모든 자료는 다음 Context를 유지한다.
 
-### 6.3 자료수집함
+- project_id
+- captured_at
+- location
+- asset_type
+- title
+- memo
+- tags
+- original_file
+- upload_status
+- source_hash
+- revision history
 
-- 자료 유형: 이미지, 영상, 음성, 텍스트
-- 현장 선택 및 자료 제목·설명 입력
-- 업로드 진행 상태 표시
-- 업로드 실패 시 재시도 가능한 상태 제공
-- 저장 완료 자료의 파일명, 유형, 현장, 저장 상태 표시
-- 업로드 파일은 사용자 원본명을 그대로 경로로 사용하지 않는다.
-- 저장 위치는 기본적으로 `storage/uploads/{fieldDayId}/{materialId}/`다.
+네트워크 불안정 시 브라우저 로컬 큐에 임시 보관하고 연결 복구 후 재전송한다.
 
-### 6.4 파일 저장 안정성
+### 5.3 Research Inbox
 
-- 임시 파일에 먼저 저장한 뒤 완료 시 원본 파일명으로 이동한다.
-- 허용된 MIME type과 확장자를 검증한다.
-- 파일 크기 제한은 환경변수로 조정한다.
-- SHA-256 해시를 저장한다.
-- 실패한 임시 파일은 정리한다.
-- 사용자 업로드 파일을 상태 점검 때문에 수정하거나 삭제하지 않는다.
+자료 상태:
 
-### 6.5 Telegram 상태 봇
+- COLLECTED
+- REVIEWED
+- CURATED
+- EXCLUDED
+- SYNC_READY
+- SYNCED
 
-#### 명령
+지원 작업:
 
-- `/start`: 사용 안내와 상태 대시보드
-- `/status`: 최신 상태 대시보드
-- `/help`: 명령, 상태 의미, 전원 한계 안내
+- 조회
+- 수정
+- 삭제
+- 태그
+- 중요 표시
+- 제외
+- 프로젝트 이동
+- Source Bundle 포함/제외
 
-#### 상태 항목
+### 5.4 Research Source Builder
 
-- Gatherly 앱 health
-- SQLite 연결 및 삭제되지 않은 FieldDay·Material 수
-- 자료 저장소 존재·읽기·쓰기 가능 여부, 용량, 파일 수
-- 디스크 여유율
-- 메모리 사용량
-- Mac 가동시간
-- load average
-- Node.js 버전
-- 상태 봇 가동시간
-- 설정된 경우 최근 오류 최대 5건
+원본 자료를 NotebookLM이 이해하기 좋은 구조로 재구성한다.
 
-#### 상태 단계
+기본 Source 문서:
 
-- 🟢 정상
-- 🟡 주의
-- 🔴 오류
-- ⚪ 확인 불가
+- project_overview.md
+- field_notes.md
+- interview_transcripts.md
+- photo_evidence.md
+- document_index.md
+- research_questions.md
+- source_manifest.md
 
-#### 인라인 UI
+Source 문서 내 각 항목은 가능한 경우 원본 ResearchAsset ID를 포함한다.
 
-- 새로고침
-- 앱 상태
-- DB 상태
-- 저장소 상태
-- 시스템 정보
-- 최근 오류
-- launchd 등록 이후에만 Gatherly 앱 복구
-- `GATHERLY_ACCESS_URL`이 유효하게 설정된 경우에만 Gatherly 열기 URL 버튼
+### 5.5 Google Drive Sync
 
-#### 동작 원칙
-
-- Telegram webhook과 외부 공개 포트를 사용하지 않는다.
-- `getUpdates` long polling을 사용한다.
-- 새로고침은 새 메시지를 만들지 않고 기존 메시지를 수정한다.
-- callback마다 `answerCallbackQuery`를 호출한다.
-- 점검 중에는 “확인 중…”을 표시한다.
-- 개별 점검 timeout을 적용한다.
-- Telegram API 일시 오류에는 지수 백오프를 적용한다.
-- update offset을 저장해 동일 업데이트를 반복 처리하지 않는다.
-- 상태 봇 오류가 프로세스 전체 종료로 이어지지 않는다.
-
-### 6.6 앱 복구
-
-- Mac mini OS 재부팅 기능은 제공하지 않는다.
-- `com.gatherly.app` 외의 launchd 서비스를 제어하지 않는다.
-- 허용된 Telegram 숫자 user ID를 다시 확인한다.
-- 현재 health가 정상인 경우 아무 작업도 하지 않는다.
-- 앱이 비정상인 경우 확인 화면을 먼저 표시한다.
-- 사용자가 “복구 실행”을 다시 눌러야 한다.
-- 고정 명령만 사용한다.
+프로젝트별 기본 폴더 구조:
 
 ```text
-launchctl kickstart -k gui/{현재_UID}/com.gatherly.app
+Gatherly/
+└── Projects/
+    └── {project-name}/
+        ├── 01_Source/
+        ├── 02_Analysis_Brief/
+        ├── 03_NotebookLM_Result/
+        └── 04_Final_Report/
 ```
 
-- shell 문자열 실행이나 사용자 입력 전달을 사용하지 않는다.
-- `sudo`, 재부팅, 종료, 잠자기 명령은 사용하지 않는다.
-- 복구 요청 사이에 60초 cooldown을 둔다.
-- 복구 시도 시간, Telegram user ID, 결과를 감사 로그에 남긴다.
-- `com.gatherly.app`이 launchd에 등록되지 않은 경우 복구 버튼을 활성화하지 않고 설정 필요 안내를 표시한다.
+기능:
 
-## 7. 비기능 요구사항
+- Source 파일 생성/업데이트
+- 중복 동기화 방지
+- 마지막 동기화 시간 표시
+- 변경 감지
+- 동기화 실패 상태 및 재시도
 
-### 7.1 보안
+### 5.6 Analysis Brief
 
-- Telegram bot token은 코드, Git, README, plist에 넣지 않는다.
-- 토큰과 허용 user ID는 권한 제한된 별도 환경 파일에 둔다.
-- username이 아닌 숫자 Telegram user ID로 인증한다.
-- 허용되지 않은 메시지와 callback은 처리하지 않는다.
-- 내부 오류 stack, 절대 경로, DB 경로, 사용자 파일명, 토큰, 쿠키, Authorization 헤더를 Telegram에 표시하지 않는다.
-- child process에는 고정 실행 파일과 고정 인수만 전달한다.
-- `shell: true`를 사용하지 않는다.
+분석 실행 전 사용자가 반드시 분석 방향을 정의한다.
 
-### 7.2 데이터 안전
+필수 또는 권장 항목:
 
-- Prisma + SQLite만 사용한다.
-- DB 마이그레이션과 쓰기 작업은 상태 점검에서 수행하지 않는다.
-- 업로드 파일을 상태 점검에서 열거나 수정·삭제하지 않는다.
-- 저장소 쓰기 점검은 임시 파일 생성 후 `finally`에서 즉시 정리한다.
-- 기존 사용자 데이터와 업로드 파일을 보존한다.
+- 분석 제목
+- 분석 목적
+- 주요 연구 질문
+- 의사결정 목적
+- 중요 평가 기준
+- 분석 대상 범위
+- 제외 범위
+- 원하는 결과물 형태
+- 추가 지시사항
 
-### 7.3 운영
+같은 Source Bundle도 Analysis Brief에 따라 서로 다른 연구 결과를 만들 수 있어야 한다.
 
-- Gatherly 운영 포트는 3001이다.
-- 상태 봇은 Gatherly 앱과 별도 프로세스다.
-- 앱과 상태 봇의 launchd label은 각각 `com.gatherly.app`, `com.gatherly.statusbot`이다.
-- launchd 등록은 설치 문서의 명시적 절차로만 수행한다.
-- 상태 봇 로그와 감사 로그는 프로젝트 `logs/`에 두며 Git에서 제외한다.
-- Node 절대 경로는 `/opt/homebrew/bin/node`를 기준으로 한다.
+### 5.7 NotebookLM Handoff
 
-## 8. 환경변수
+MVP에서는 비공식 API, 로그인 자동화, 브라우저 조작을 핵심 기능으로 사용하지 않는다.
 
-### 앱·공통
+Gatherly에서 제공:
 
-- `DATABASE_URL`: Prisma SQLite URL
-- `STORAGE_ROOT`: 로컬 저장소 루트
-- `UPLOAD_MAX_IMAGE_BYTES`
-- `UPLOAD_MAX_VIDEO_BYTES`
-- `UPLOAD_MAX_AUDIO_BYTES`
+- NotebookLM 자료 준비
+- Source 동기화
+- Analysis Brief 생성
+- NotebookLM 연결 상태
+- 마지막 동기화 시간
+- NotebookLM 열기 버튼
 
-### 상태 봇
+사용자는 구독형 NotebookLM 서비스 내에서 연구·분석을 수행한다.
 
-- `GATHERLY_TELEGRAM_BOT_TOKEN`
-- `GATHERLY_TELEGRAM_ALLOWED_USER_ID`
-- `GATHERLY_APP_HEALTH_URL=http://127.0.0.1:3001/api/health`
-- `GATHERLY_ACCESS_URL`
-- `GATHERLY_STORAGE_PATH`
-- `GATHERLY_LOG_PATH`
-- `GATHERLY_DISK_WARN_PERCENT`, 기본 80
-- `GATHERLY_DISK_CRITICAL_PERCENT`, 기본 90
-- `GATHERLY_HEALTH_TIMEOUT_MS`, 기본 5000
-- `GATHERLY_HEALTH_SLOW_MS`, 기본 2000
+### 5.8 Research Result Import
 
-실제 토큰과 Telegram user ID는 저장소에 기록하지 않는다.
+NotebookLM 분석 결과의 기본 교환 포맷은 Google Docs다.
 
-## 9. 기술 구조
+지원 방식:
+
+- 사용자가 Google Docs 문서를 직접 선택해 가져오기
+- 프로젝트 Result Folder의 새 결과 문서를 감지해 가져오기
+
+저장 정보:
+
+- result title
+- analysis brief
+- source bundle
+- notebook reference
+- google_doc_id
+- imported_at
+- version
+- status
+
+### 5.9 Report Workspace
+
+- 결과 Preview
+- Google Docs 열기
+- 직접 텍스트 수정
+- 수정 요청 작성
+- 버전 생성
+- 이전 버전 비교
+- 최종본 지정
+- PDF 출력
+
+### 5.10 Revision Workflow
+
+수정 유형:
+
+- TEXT_EDIT
+- STRUCTURE_CHANGE
+- RESEARCH_EXPANSION
+- NEW_RESEARCH_QUESTION
+- EVIDENCE_ADDITION
+- SOURCE_UPDATE
+
+TEXT_EDIT, STRUCTURE_CHANGE는 보고서 편집 단계에서 처리할 수 있다.
+
+RESEARCH_EXPANSION, NEW_RESEARCH_QUESTION, EVIDENCE_ADDITION, SOURCE_UPDATE는 새로운 Analysis Brief Revision을 생성해 NotebookLM 연구 단계로 되돌린다.
+
+### 5.11 Evidence Lineage
+
+다음 관계를 추적할 수 있어야 한다.
 
 ```text
-iPhone Safari ──Tailscale──> Gatherly Next.js :3001
-                                  │
-                                  ├─ Prisma Client
-                                  ├─ SQLite (prisma/dev.db)
-                                  └─ storage/uploads
-
-iPhone Telegram ──Telegram API getUpdates──> Gatherly Status Bot
-                                               │
-                                               ├─ localhost:3001/api/health
-                                               ├─ SQLite read-only checks
-                                               ├─ storage/system checks
-                                               └─ optional launchctl kickstart
+Original Evidence
+→ Source Document
+→ Source Bundle
+→ Analysis Brief
+→ NotebookLM Research
+→ Research Result
+→ Report Version
 ```
 
-주요 코드 영역:
+최종 보고서의 근거가 어느 현장 자료에서 출발했는지 추적할 수 있도록 한다.
 
-- `app/`: Next.js App Router 화면과 API
-- `app/api/health/route.ts`: 민감정보 없는 앱 health endpoint
-- `lib/prisma.ts`: Prisma client
-- `lib/storage.ts`: 파일 검증·저장·조회
-- `scripts/gatherly-status-bot/`: Telegram 상태 봇
-- `macmini/`: 실행 스크립트, launchd 템플릿, 운영 문서
+### 5.12 Research Pipeline 화면
 
-## 10. 운영 및 검증 명령
+프로젝트별 진행 상태를 한 화면에서 보여준다.
 
-```sh
-cd /Users/sinjulee/Projects/Gatherly
-npm run db:generate
-npm run build
-npm start -- -p 3001
+```text
+① 자료수집
+↓
+② 자료정리
+↓
+③ NotebookLM 준비
+↓
+④ 분석방향
+↓
+⑤ NotebookLM 연구
+↓
+⑥ 결과검토
+↓
+⑦ 수정/보강
+↓
+⑧ 최종보고서
 ```
 
-상태 봇 dry-run:
+각 단계는 완료율, 건수, 최근 변경 시각, 다음 행동을 표시한다.
 
-```sh
-npm run bot:status:check
-```
+## 6. 기존 기능 유지
 
-품질 검사:
+다음 1차 개발 기능은 유지한다.
 
-```sh
-npm run lint
-npm run typecheck
-npm run build
-```
+- FieldDay CRUD
+- 자료 업로드
+- 이미지·영상·음성·텍스트 저장
+- IndexedDB 기반 업로드 대기 보존
+- 업로드 실패 재시도
+- 파일 원본 저장
+- Prisma + SQLite
+- PWA
+- Tailscale 내부 접근
+- Telegram 상태 봇
+- 앱 health 점검
+- 제한된 launchd 앱 복구
 
-health 확인:
+## 7. MVP에서 제외하는 기능
 
-```sh
-curl -i http://127.0.0.1:3001/api/health
-```
+- 자체 Deep Research 엔진
+- 자체 웹 검색·랭킹 엔진
+- 자체 Citation Research 엔진
+- 자체 대규모 문서 Q&A Workspace
+- Codex 기반 자동 보고서 Research Engine
+- NotebookLM 비공식 API
+- NotebookLM 로그인 자동화
+- NotebookLM UI Browser Automation
 
-## 11. 1차 범위 제외
+향후 공식 NotebookLM 연동 수단이 안정적으로 제공되면 Integration Layer 교체가 가능하도록 추상화한다.
 
-- 외부 공개 배포
-- Cloudflare, Supabase, Tailscale 설정 변경
-- Telegram webhook
-- 관리자 웹페이지
-- 다중 운영자 권한 관리
-- 앱·Mac mini 재부팅 및 종료
-- 임의 shell 명령 실행
-- Telegram을 통한 파일 삭제·수정
-- 보고서 자동 생성 및 AI 분석
-- 사용자 계정·조직·공유 기능
-- launchd 실제 등록 자동화
+## 8. 비기능 요구사항
 
-## 12. 알려진 한계
+### 8.1 데이터 안전
 
-- Mac mini 전원이 꺼지면 상태 봇도 응답할 수 없다.
-- 상태 봇까지 응답하지 않으면 전원, 네트워크, 봇 프로세스 문제를 별도로 확인해야 한다.
-- launchd 서비스가 등록되지 않은 상태에서는 앱 자동 복구가 동작하지 않는다.
-- 현재 SQLite와 업로드 파일은 Mac mini 로컬 디스크에 의존한다.
-- Telegram 상태 봇은 허용된 단일 user ID만 지원한다.
-- Tailscale 내부 접근은 운영 환경 설정에 따라 달라질 수 있다.
+- 원본 자료는 AI/동기화 실패와 무관하게 보존한다.
+- 파일과 DB 메타데이터의 일관성을 유지한다.
+- 업로드 중 네트워크가 끊겨도 가능한 한 복구할 수 있어야 한다.
+- Source 생성/동기화 과정이 원본을 수정하거나 삭제하지 않는다.
 
-## 13. 2차 개발 후보
+### 8.2 신뢰성
 
-- `com.gatherly.app` 및 `com.gatherly.statusbot` launchd 설치 자동화 보조
-- 백업 상태와 마지막 백업 시간 표시
-- 디스크·메모리 이력과 장애 알림
-- 다중 운영자와 역할별 권한
-- 안전한 상태 봇 감사 로그 조회
-- 보고서 작성·내보내기
-- 자료 중복 감지와 검색
-- SQLite 백업 무결성 검증
+- Drive Sync 실패는 프로젝트 자료 수집을 차단하지 않는다.
+- NotebookLM 장애 또는 미접속 상태에서도 Capture/Inbox 기능은 사용 가능해야 한다.
+- 동기화는 idempotent하게 설계한다.
 
-## 14. 완료 기준 체크리스트
+### 8.3 보안
 
-- [x] 현장 생성·조회·상태 관리
-- [x] 자료수집함과 파일 업로드
-- [x] SQLite + 로컬 storage 저장
-- [x] 민감정보 없는 `/api/health`
-- [x] Telegram long polling 상태 봇
-- [x] 숫자 user ID 인증
-- [x] 앱·DB·저장소·시스템 상태 점검
-- [x] dry-run 및 상태 메시지 미리보기
-- [x] 고정 launchd 앱 복구 흐름
-- [x] 앱·상태 봇 launchd 템플릿
-- [x] Mac mini 운영 문서
-- [x] lint, typecheck, build 통과
-- [ ] 실제 launchd 등록
-- [ ] 외부 공개 배포
+- Google 인증 정보, Telegram token, 기타 secret은 저장소에 커밋하지 않는다.
+- NotebookLM 사용자 로그인 세션을 Gatherly가 보관하지 않는다.
+- 외부 서비스 연결 실패 시 내부 stack과 secret을 UI에 노출하지 않는다.
+
+### 8.4 모바일 우선
+
+- iPhone에서 한 손으로 빠르게 자료를 추가할 수 있어야 한다.
+- 자료 저장 완료 여부가 명확히 보여야 한다.
+- 여러 장 사진 업로드가 개별 파일 단위로 안정적으로 저장되어야 한다.
+
+## 9. 성공 기준
+
+- 현장에서 사진·영상·음성·텍스트를 안정적으로 수집할 수 있다.
+- 모든 자료가 프로젝트와 연결된다.
+- 사용자가 Research Inbox에서 분석 대상 자료를 선별할 수 있다.
+- 선택한 자료에서 NotebookLM Source Bundle을 생성할 수 있다.
+- Google Drive 프로젝트 폴더에 Source와 Analysis Brief를 동기화할 수 있다.
+- 사용자가 Gatherly에서 NotebookLM 연구 단계로 자연스럽게 이동할 수 있다.
+- NotebookLM 결과 Google Docs를 Gatherly로 가져올 수 있다.
+- 결과를 수정·버전 관리하고 최종본을 지정할 수 있다.
+- 최종 결과에서 주요 Evidence의 출처를 역추적할 수 있다.
+
+## 10. 제품 포지셔닝
+
+Gatherly는 NotebookLM의 대체재가 아니다.
+
+Gatherly는 현장 조사 전 과정을 운영하고 NotebookLM을 고품질 Research Engine으로 활용하는 Field Research OS다.
+
+제품의 핵심 차별점은 다음 조합이다.
+
+**Field Capture + Evidence Management + Context Preservation + NotebookLM Research Orchestration + Report Lifecycle Management**
