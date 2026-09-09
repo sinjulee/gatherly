@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Database, ExternalLink, FileStack, Star } from "lucide-react";
+import { Check, Database, ExternalLink, FileStack, Star, WandSparkles } from "lucide-react";
 
 type Project = { id: string; title: string; location: string | null; fieldDate: string };
 type ResearchMaterial = { id: string; fieldDayId: string | null; type: string; title: string; reviewStatus: string; isImportant: boolean; createdAt: string };
@@ -16,6 +16,13 @@ const statusLabel: Record<string, string> = {
   SYNCED: "동기화됨",
 };
 
+const bundleStatusLabel: Record<string, string> = {
+  DRAFT: "Evidence 묶음",
+  BUILT: "Source 문서 생성 완료",
+  SYNCING: "Drive 동기화 중",
+  SYNCED: "Drive 동기화 완료",
+};
+
 export function ResearchPipelineWorkspace({ projects, initialMaterials, initialBundles }: { projects: Project[]; initialMaterials: ResearchMaterial[]; initialBundles: Bundle[] }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [materials, setMaterials] = useState(initialMaterials);
@@ -23,6 +30,7 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
   const [selected, setSelected] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [buildingId, setBuildingId] = useState("");
 
   const projectMaterials = useMemo(() => materials.filter((item) => item.fieldDayId === projectId), [materials, projectId]);
   const projectBundles = useMemo(() => bundles.filter((item) => item.fieldDayId === projectId), [bundles, projectId]);
@@ -35,6 +43,13 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     setMaterials((current) => current.map((item) => item.id === id ? { ...item, reviewStatus: data.material.reviewStatus, isImportant: data.material.isImportant } : item));
   }
 
+  async function refreshBundles() {
+    if (!projectId) return;
+    const response = await fetch(`/api/research/source-bundles?fieldDayId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
+    const data = await response.json();
+    if (response.ok) setBundles((current) => [...current.filter((item) => item.fieldDayId !== projectId), ...data.bundles]);
+  }
+
   async function createBundle() {
     if (!projectId || !selected.length || busy) return;
     setBusy(true); setNotice("");
@@ -42,15 +57,27 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
       const response = await fetch("/api/research/source-bundles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldDayId: projectId, materialIds: selected }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Source Bundle을 생성하지 못했습니다.");
-      const listResponse = await fetch(`/api/research/source-bundles?fieldDayId=${encodeURIComponent(projectId)}`, { cache: "no-store" });
-      const listData = await listResponse.json();
-      if (listResponse.ok) setBundles((current) => [...current.filter((item) => item.fieldDayId !== projectId), ...listData.bundles]);
+      await refreshBundles();
       setMaterials((current) => current.map((item) => selected.includes(item.id) ? { ...item, reviewStatus: "SYNC_READY" } : item));
       setSelected([]);
       setNotice(`${data.materialCount}개 자료로 NotebookLM Source Bundle v${data.bundle.version}을 만들었습니다.`);
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Source Bundle을 생성하지 못했습니다.");
     } finally { setBusy(false); }
+  }
+
+  async function buildBundle(bundle: Bundle) {
+    if (buildingId) return;
+    setBuildingId(bundle.id); setNotice("");
+    try {
+      const response = await fetch(`/api/research/source-bundles/${bundle.id}/build`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Source 문서를 만들지 못했습니다.");
+      await refreshBundles();
+      setNotice(`v${bundle.version} Source 문서 ${data.result.documentCount}개를 생성했습니다. 저장 위치: ${data.result.outputDir}`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Source 문서를 만들지 못했습니다.");
+    } finally { setBuildingId(""); }
   }
 
   return <div className="mt-7 grid gap-5">
@@ -68,7 +95,10 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
       <div className="mt-4 grid gap-3">{projectMaterials.map((material) => <article key={material.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 md:flex-row md:items-center md:justify-between"><div className="flex min-w-0 items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5" disabled={material.reviewStatus === "EXCLUDED"} checked={selected.includes(material.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, material.id] : current.filter((id) => id !== material.id))} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm">{material.title}</strong><span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold">{material.type}</span>{material.isImportant && <Star size={15} fill="currentColor" />}</div><p className="mt-1 text-xs text-secondary">{statusLabel[material.reviewStatus] ?? material.reviewStatus}</p></div></div><div className="flex flex-wrap gap-2"><button onClick={() => void updateMaterial(material.id, { isImportant: !material.isImportant })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold">{material.isImportant ? "중요 해제" : "중요"}</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "CURATED" })} className="min-h-9 rounded-lg bg-mint px-3 text-xs font-bold">연구선정</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "EXCLUDED" })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold text-secondary">제외</button></div></article>)}{!projectMaterials.length && <p className="py-8 text-center text-sm text-secondary">이 현장에 저장된 자료가 없습니다.</p>}</div>
     </section>
 
-    <section className="paper-card p-5 md:p-6"><div className="flex items-center justify-between"><div><h3 className="text-xl font-extrabold">Source Bundle</h3><p className="mt-1 text-sm text-secondary">다음 단계에서 이 묶음을 Google Drive 문서로 변환해 NotebookLM Source로 사용합니다.</p></div><ExternalLink size={20} /></div><div className="mt-4 grid gap-3">{projectBundles.map((bundle) => <div key={bundle.id} className="flex items-center justify-between rounded-xl bg-page p-4"><div><strong className="text-sm">{bundle.title}</strong><p className="mt-1 text-xs text-secondary">v{bundle.version} · Evidence {bundle._count.items}개 · {bundle.status}</p></div><span className="rounded-full bg-orange px-3 py-2 text-xs font-extrabold">NotebookLM 준비</span></div>)}{!projectBundles.length && <p className="py-6 text-center text-sm text-secondary">아직 생성된 Source Bundle이 없습니다.</p>}</div></section>
+    <section className="paper-card p-5 md:p-6">
+      <div className="flex items-center justify-between"><div><h3 className="text-xl font-extrabold">Source Bundle</h3><p className="mt-1 text-sm text-secondary">Evidence 묶음을 NotebookLM이 읽기 좋은 문서 세트로 변환합니다.</p></div><ExternalLink size={20} /></div>
+      <div className="mt-4 grid gap-3">{projectBundles.map((bundle) => <div key={bundle.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 md:flex-row md:items-center md:justify-between"><div><strong className="text-sm">{bundle.title}</strong><p className="mt-1 text-xs text-secondary">v{bundle.version} · Evidence {bundle._count.items}개 · Source 문서 {bundle._count.sourceDocuments}개 · {bundleStatusLabel[bundle.status] ?? bundle.status}</p></div><div className="flex items-center gap-2"><button disabled={buildingId === bundle.id} onClick={() => void buildBundle(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-mint px-3 text-xs font-extrabold disabled:opacity-50"><WandSparkles size={15} />{buildingId === bundle.id ? "문서 생성 중…" : bundle.status === "BUILT" ? "Source 다시 생성" : "NotebookLM Source 생성"}</button><span className="rounded-full bg-orange px-3 py-2 text-xs font-extrabold">{bundle.status === "BUILT" ? "Drive Sync 준비" : "NotebookLM 준비"}</span></div></div>)}{!projectBundles.length && <p className="py-6 text-center text-sm text-secondary">아직 생성된 Source Bundle이 없습니다.</p>}</div>
+    </section>
   </div>;
 }
 
