@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, CloudUpload, Database, ExternalLink, FileStack, Star, WandSparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, CloudUpload, Database, ExternalLink, FileStack, Save, Star, WandSparkles } from "lucide-react";
 
 type Project = { id: string; title: string; location: string | null; fieldDate: string };
 type ResearchMaterial = { id: string; fieldDayId: string | null; type: string; title: string; reviewStatus: string; isImportant: boolean; createdAt: string };
@@ -33,10 +33,28 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
   const [buildingId, setBuildingId] = useState("");
   const [syncingId, setSyncingId] = useState("");
   const [driveUrls, setDriveUrls] = useState<Record<string, string>>({});
+  const [notebookUrl, setNotebookUrl] = useState("");
+  const [notebookSaving, setNotebookSaving] = useState(false);
 
   const projectMaterials = useMemo(() => materials.filter((item) => item.fieldDayId === projectId), [materials, projectId]);
   const projectBundles = useMemo(() => bundles.filter((item) => item.fieldDayId === projectId), [bundles, projectId]);
   const curatedCount = projectMaterials.filter((item) => ["CURATED", "SYNC_READY", "SYNCED"].includes(item.reviewStatus)).length;
+  const latestSyncedBundle = projectBundles.find((bundle) => bundle.status === "SYNCED");
+
+  useEffect(() => {
+    if (!projectId) { setNotebookUrl(""); return; }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/research/notebook-link?fieldDayId=${encodeURIComponent(projectId)}`, { cache: "no-store", signal: controller.signal });
+        const data = await response.json();
+        if (response.ok) setNotebookUrl(data.link?.notebookUrl || "");
+      } catch {
+        if (!controller.signal.aborted) setNotebookUrl("");
+      }
+    })();
+    return () => controller.abort();
+  }, [projectId]);
 
   async function updateMaterial(id: string, values: { reviewStatus?: string; isImportant?: boolean }) {
     const response = await fetch(`/api/research/materials/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
@@ -98,11 +116,25 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     } finally { setSyncingId(""); }
   }
 
+  async function saveNotebookLink() {
+    if (!projectId || !notebookUrl.trim() || notebookSaving) return;
+    setNotebookSaving(true); setNotice("");
+    try {
+      const response = await fetch("/api/research/notebook-link", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldDayId: projectId, notebookUrl: notebookUrl.trim() }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "NotebookLM 연결정보를 저장하지 못했습니다.");
+      setNotebookUrl(data.link.notebookUrl);
+      setNotice("이 현장 프로젝트의 NotebookLM 연결주소를 저장했습니다.");
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "NotebookLM 연결정보를 저장하지 못했습니다.");
+    } finally { setNotebookSaving(false); }
+  }
+
   return <div className="mt-7 grid gap-5">
     <section className="paper-card p-5 md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div><p className="text-sm font-semibold text-secondary">RESEARCH PIPELINE</p><h2 className="mt-1 text-2xl font-extrabold">NotebookLM 연구 준비</h2><p className="mt-1 text-sm text-secondary">현장자료를 검토하고 연구에 사용할 Evidence만 Source Bundle로 묶습니다.</p></div>
-        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); setDriveUrls({}); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       </div>
       {notice && <p className="mt-4 rounded-lg bg-page p-3 text-sm text-secondary">{notice}</p>}
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><Metric label="전체 Evidence" value={projectMaterials.length} icon={<Database size={18} />} /><Metric label="연구선정" value={curatedCount} icon={<Check size={18} />} /><Metric label="Source Bundle" value={projectBundles.length} icon={<FileStack size={18} />} /></div>
@@ -117,6 +149,9 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
       <div className="flex items-center justify-between"><div><h3 className="text-xl font-extrabold">Source Bundle</h3><p className="mt-1 text-sm text-secondary">Evidence → Source 문서 → Google Drive 순으로 준비합니다. NotebookLM 자체는 API를 사용하지 않습니다.</p></div><ExternalLink size={20} /></div>
       <div className="mt-4 grid gap-3">{projectBundles.map((bundle) => <div key={bundle.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 xl:flex-row xl:items-center xl:justify-between"><div><strong className="text-sm">{bundle.title}</strong><p className="mt-1 text-xs text-secondary">v{bundle.version} · Evidence {bundle._count.items}개 · Source 문서 {bundle._count.sourceDocuments}개 · {bundleStatusLabel[bundle.status] ?? bundle.status}</p></div><div className="flex flex-wrap items-center gap-2"><button disabled={buildingId === bundle.id || syncingId === bundle.id} onClick={() => void buildBundle(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-mint px-3 text-xs font-extrabold disabled:opacity-50"><WandSparkles size={15} />{buildingId === bundle.id ? "문서 생성 중…" : bundle.status === "DRAFT" ? "NotebookLM Source 생성" : "Source 다시 생성"}</button><button disabled={bundle.status === "DRAFT" || syncingId === bundle.id || buildingId === bundle.id} onClick={() => void syncDrive(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-orange px-3 text-xs font-extrabold disabled:opacity-40"><CloudUpload size={15} />{syncingId === bundle.id ? "Drive 동기화 중…" : bundle.status === "SYNCED" ? "Drive 다시 동기화" : "Google Drive 동기화"}</button>{driveUrls[bundle.id] && <a href={driveUrls[bundle.id]} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-1 rounded-xl bg-surface px-3 text-xs font-extrabold">Drive 열기 <ExternalLink size={14} /></a>}<span className="rounded-full bg-surface px-3 py-2 text-xs font-extrabold">{bundleStatusLabel[bundle.status] ?? bundle.status}</span></div></div>)}{!projectBundles.length && <p className="py-6 text-center text-sm text-secondary">아직 생성된 Source Bundle이 없습니다.</p>}</div>
     </section>
+
+    <section className="collage-card bg-mint p-5 md:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-sm font-extrabold text-orange">NOTEBOOKLM HANDOFF</p><h3 className="mt-1 text-xl font-extrabold">프로젝트 Notebook 연결</h3><p className="mt-1 text-sm text-secondary">Drive Source가 준비되면 해당 프로젝트의 NotebookLM 주소를 저장해 바로 연구를 이어갑니다.</p></div><div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl"><input type="url" value={notebookUrl} onChange={(event) => setNotebookUrl(event.target.value)} placeholder="https://notebooklm.google.com/..." className="min-h-11 flex-1 rounded-xl border border-ui bg-surface px-3 text-sm" /><button disabled={!projectId || !notebookUrl.trim() || notebookSaving} onClick={() => void saveNotebookLink()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-extrabold disabled:opacity-40"><Save size={16} />{notebookSaving ? "저장 중…" : "주소 저장"}</button>{notebookUrl && <a href={notebookUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold">NotebookLM 열기 <ExternalLink size={16} /></a>}</div></div>{latestSyncedBundle ? <p className="mt-4 text-xs font-semibold text-secondary">최근 Drive 동기화 Bundle: v{latestSyncedBundle.version} · NotebookLM에서 해당 Google Drive Source를 등록해 분석을 시작할 수 있습니다.</p> : <p className="mt-4 text-xs font-semibold text-secondary">먼저 Source Bundle의 Google Drive 동기화를 완료해 주세요.</p>}</section>
   </div>;
 }
 
