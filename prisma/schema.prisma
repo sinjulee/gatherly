@@ -8,45 +8,55 @@ datasource db {
 }
 
 model FieldDay {
-  id          String     @id @default(uuid())
-  title       String
-  location    String?
-  fieldDate   DateTime   @default(now()) @map("date")
-  description String?    @map("notes")
-  status      String     @default("ACTIVE")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  deletedAt   DateTime?
-  materials   Material[]
-  reports     Report[]
+  id             String           @id @default(uuid())
+  title          String
+  location       String?
+  fieldDate      DateTime         @default(now()) @map("date")
+  description    String?          @map("notes")
+  status         String           @default("ACTIVE")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+  materials      Material[]
+  reports        Report[]
+  sourceBundles  SourceBundle[]
+  analysisBriefs AnalysisBrief[]
+  notebookLink   NotebookLink?
+  syncJobs       SyncJob[]
+  researchResults ResearchResult[]
 
   @@index([status, deletedAt])
 }
 
 model Material {
-  id             String    @id @default(uuid())
-  type           String
-  title          String
-  description    String?
-  content        String?
-  originalName   String?
-  storedName     String?
-  relativePath   String?   @map("filePath")
-  mimeType       String?
-  sizeBytes      Int?
-  sha256         String?
-  uploadStatus   String    @default("STORED")
-  uploadError    String?
-  clientUploadId String?   @unique
-  capturedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
-  fieldDayId     String?
-  fieldDay       FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  id               String             @id @default(uuid())
+  type             String
+  title            String
+  description      String?
+  content          String?
+  originalName     String?
+  storedName       String?
+  relativePath     String?            @map("filePath")
+  mimeType         String?
+  sizeBytes        Int?
+  sha256           String?
+  uploadStatus     String             @default("STORED")
+  uploadError      String?
+  clientUploadId   String?            @unique
+  capturedAt       DateTime?
+  reviewStatus     String             @default("COLLECTED")
+  tagsJson         String?
+  isImportant      Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  deletedAt        DateTime?
+  fieldDayId       String?
+  fieldDay         FieldDay?          @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  sourceBundleItems SourceBundleItem[]
 
   @@index([fieldDayId, deletedAt, createdAt])
   @@index([type, uploadStatus])
+  @@index([reviewStatus, deletedAt])
 }
 
 model Report {
@@ -107,4 +117,169 @@ model ReportIntegrationDelivery {
 
   @@index([reportId, destination, status])
   @@index([reportVersionId, destination])
+}
+
+model SourceBundle {
+  id              String             @id @default(cuid())
+  fieldDayId      String
+  version         Int                @default(1)
+  title           String
+  status          String             @default("DRAFT")
+  manifestJson    String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  fieldDay        FieldDay           @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+  items           SourceBundleItem[]
+  sourceDocuments SourceDocument[]
+  analysisBriefs  AnalysisBrief[]
+  syncJobs        SyncJob[]
+  researchResults ResearchResult[]
+
+  @@unique([fieldDayId, version])
+  @@index([fieldDayId, status])
+}
+
+model SourceBundleItem {
+  id               String       @id @default(cuid())
+  sourceBundleId   String
+  materialId       String
+  sourceType       String?
+  sortOrder        Int          @default(0)
+  included         Boolean      @default(true)
+  sourceBundle     SourceBundle @relation(fields: [sourceBundleId], references: [id], onDelete: Cascade)
+  material         Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceBundleId, materialId])
+  @@index([materialId])
+}
+
+model SourceDocument {
+  id             String       @id @default(cuid())
+  sourceBundleId String
+  documentType   String
+  localPath      String?
+  driveFileId    String?
+  checksum       String?
+  syncStatus     String       @default("PENDING")
+  lastSyncedAt   DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  sourceBundle   SourceBundle @relation(fields: [sourceBundleId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceBundleId, documentType])
+  @@index([syncStatus])
+}
+
+model AnalysisBrief {
+  id                    String        @id @default(cuid())
+  fieldDayId            String
+  sourceBundleId        String?
+  parentBriefId         String?
+  version               Int           @default(1)
+  title                 String
+  goal                  String
+  researchQuestions     String?
+  decisionContext       String?
+  evaluationCriteria    String?
+  targetScope           String?
+  excludeScope          String?
+  outputType            String?
+  additionalInstruction String?
+  driveFileId           String?
+  status                String        @default("DRAFT")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  fieldDay              FieldDay      @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+  sourceBundle          SourceBundle? @relation(fields: [sourceBundleId], references: [id], onDelete: SetNull)
+  parentBrief           AnalysisBrief? @relation("AnalysisBriefRevisions", fields: [parentBriefId], references: [id], onDelete: SetNull)
+  revisions             AnalysisBrief[] @relation("AnalysisBriefRevisions")
+  syncJobs              SyncJob[]
+  researchResults       ResearchResult[]
+
+  @@index([fieldDayId, status])
+  @@index([sourceBundleId])
+  @@index([parentBriefId])
+}
+
+model NotebookLink {
+  id            String   @id @default(cuid())
+  fieldDayId    String   @unique
+  notebookUrl   String
+  notebookLabel String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  fieldDay      FieldDay @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+}
+
+model SyncJob {
+  id              String         @id @default(cuid())
+  fieldDayId      String
+  sourceBundleId  String?
+  analysisBriefId String?
+  jobType         String
+  status          String         @default("PENDING")
+  attemptCount    Int            @default(0)
+  errorCode       String?
+  errorMessageSafe String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  fieldDay        FieldDay       @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+  sourceBundle    SourceBundle?  @relation(fields: [sourceBundleId], references: [id], onDelete: SetNull)
+  analysisBrief   AnalysisBrief? @relation(fields: [analysisBriefId], references: [id], onDelete: SetNull)
+
+  @@index([fieldDayId, status])
+  @@index([sourceBundleId])
+  @@index([analysisBriefId])
+}
+
+model ResearchResult {
+  id              String          @id @default(cuid())
+  fieldDayId      String
+  sourceBundleId  String
+  analysisBriefId String
+  title           String
+  googleDocId     String?
+  importedAt      DateTime        @default(now())
+  status          String          @default("IMPORTED")
+  version         Int             @default(1)
+  fieldDay        FieldDay        @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+  sourceBundle    SourceBundle    @relation(fields: [sourceBundleId], references: [id], onDelete: Restrict)
+  analysisBrief   AnalysisBrief   @relation(fields: [analysisBriefId], references: [id], onDelete: Restrict)
+  reportVersions  ReportVersion[]
+
+  @@index([fieldDayId, status])
+  @@index([sourceBundleId])
+  @@index([analysisBriefId])
+}
+
+model ReportVersion {
+  id                String            @id @default(cuid())
+  researchResultId  String
+  versionNo         Int
+  title             String
+  googleDocId       String?
+  localSnapshotPath String?
+  revisionReason    String?
+  status            String            @default("DRAFT")
+  createdAt         DateTime          @default(now())
+  researchResult    ResearchResult    @relation(fields: [researchResultId], references: [id], onDelete: Cascade)
+  revisionRequests  RevisionRequest[]
+
+  @@unique([researchResultId, versionNo])
+  @@index([status])
+}
+
+model RevisionRequest {
+  id              String        @id @default(cuid())
+  reportVersionId String
+  type            String
+  instruction     String
+  status          String        @default("OPEN")
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+  reportVersion   ReportVersion @relation(fields: [reportVersionId], references: [id], onDelete: Cascade)
+
+  @@index([reportVersionId, status])
 }
