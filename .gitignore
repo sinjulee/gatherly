@@ -17,3 +17,5 @@ public/fonts/*.{woff,woff2,ttf,otf}
 !public/fonts/Paperlogy-8ExtraBold.ttf
 
 tsconfig.tsbuildinfo
+.DS_Store
+prisma/*.backup*

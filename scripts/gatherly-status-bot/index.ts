@@ -123,8 +123,8 @@ async function main() {
         offset = update.update_id + 1;
         await saveOffset(offset);
       }
-    } catch {
-      console.error("[status-bot] Telegram 연결 오류. 재시도합니다.");
+    } catch (error) {
+      console.error("[status-bot] 처리 오류. 재시도합니다.", error);
       await new Promise((resolve) => setTimeout(resolve, retryMs));
       retryMs = Math.min(retryMs * 2, 30_000);
     }
