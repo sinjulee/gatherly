@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Database, ExternalLink, FileStack, Star, WandSparkles } from "lucide-react";
+import { Check, CloudUpload, Database, ExternalLink, FileStack, Star, WandSparkles } from "lucide-react";
 
 type Project = { id: string; title: string; location: string | null; fieldDate: string };
 type ResearchMaterial = { id: string; fieldDayId: string | null; type: string; title: string; reviewStatus: string; isImportant: boolean; createdAt: string };
@@ -31,6 +31,8 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [buildingId, setBuildingId] = useState("");
+  const [syncingId, setSyncingId] = useState("");
+  const [driveUrls, setDriveUrls] = useState<Record<string, string>>({});
 
   const projectMaterials = useMemo(() => materials.filter((item) => item.fieldDayId === projectId), [materials, projectId]);
   const projectBundles = useMemo(() => bundles.filter((item) => item.fieldDayId === projectId), [bundles, projectId]);
@@ -80,6 +82,22 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     } finally { setBuildingId(""); }
   }
 
+  async function syncDrive(bundle: Bundle) {
+    if (syncingId || bundle.status === "DRAFT") return;
+    setSyncingId(bundle.id); setNotice("");
+    try {
+      const response = await fetch(`/api/research/source-bundles/${bundle.id}/sync-drive`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Google Drive 동기화에 실패했습니다.");
+      setDriveUrls((current) => ({ ...current, [bundle.id]: data.result.versionFolderUrl }));
+      setMaterials((current) => current.map((item) => item.fieldDayId === bundle.fieldDayId && item.reviewStatus === "SYNC_READY" ? { ...item, reviewStatus: "SYNCED" } : item));
+      await refreshBundles();
+      setNotice(`v${bundle.version} Source 문서를 Google Drive에 동기화했습니다.`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Google Drive 동기화에 실패했습니다.");
+    } finally { setSyncingId(""); }
+  }
+
   return <div className="mt-7 grid gap-5">
     <section className="paper-card p-5 md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -96,8 +114,8 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     </section>
 
     <section className="paper-card p-5 md:p-6">
-      <div className="flex items-center justify-between"><div><h3 className="text-xl font-extrabold">Source Bundle</h3><p className="mt-1 text-sm text-secondary">Evidence 묶음을 NotebookLM이 읽기 좋은 문서 세트로 변환합니다.</p></div><ExternalLink size={20} /></div>
-      <div className="mt-4 grid gap-3">{projectBundles.map((bundle) => <div key={bundle.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 md:flex-row md:items-center md:justify-between"><div><strong className="text-sm">{bundle.title}</strong><p className="mt-1 text-xs text-secondary">v{bundle.version} · Evidence {bundle._count.items}개 · Source 문서 {bundle._count.sourceDocuments}개 · {bundleStatusLabel[bundle.status] ?? bundle.status}</p></div><div className="flex items-center gap-2"><button disabled={buildingId === bundle.id} onClick={() => void buildBundle(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-mint px-3 text-xs font-extrabold disabled:opacity-50"><WandSparkles size={15} />{buildingId === bundle.id ? "문서 생성 중…" : bundle.status === "BUILT" ? "Source 다시 생성" : "NotebookLM Source 생성"}</button><span className="rounded-full bg-orange px-3 py-2 text-xs font-extrabold">{bundle.status === "BUILT" ? "Drive Sync 준비" : "NotebookLM 준비"}</span></div></div>)}{!projectBundles.length && <p className="py-6 text-center text-sm text-secondary">아직 생성된 Source Bundle이 없습니다.</p>}</div>
+      <div className="flex items-center justify-between"><div><h3 className="text-xl font-extrabold">Source Bundle</h3><p className="mt-1 text-sm text-secondary">Evidence → Source 문서 → Google Drive 순으로 준비합니다. NotebookLM 자체는 API를 사용하지 않습니다.</p></div><ExternalLink size={20} /></div>
+      <div className="mt-4 grid gap-3">{projectBundles.map((bundle) => <div key={bundle.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 xl:flex-row xl:items-center xl:justify-between"><div><strong className="text-sm">{bundle.title}</strong><p className="mt-1 text-xs text-secondary">v{bundle.version} · Evidence {bundle._count.items}개 · Source 문서 {bundle._count.sourceDocuments}개 · {bundleStatusLabel[bundle.status] ?? bundle.status}</p></div><div className="flex flex-wrap items-center gap-2"><button disabled={buildingId === bundle.id || syncingId === bundle.id} onClick={() => void buildBundle(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-mint px-3 text-xs font-extrabold disabled:opacity-50"><WandSparkles size={15} />{buildingId === bundle.id ? "문서 생성 중…" : bundle.status === "DRAFT" ? "NotebookLM Source 생성" : "Source 다시 생성"}</button><button disabled={bundle.status === "DRAFT" || syncingId === bundle.id || buildingId === bundle.id} onClick={() => void syncDrive(bundle)} className="flex min-h-10 items-center gap-2 rounded-xl bg-orange px-3 text-xs font-extrabold disabled:opacity-40"><CloudUpload size={15} />{syncingId === bundle.id ? "Drive 동기화 중…" : bundle.status === "SYNCED" ? "Drive 다시 동기화" : "Google Drive 동기화"}</button>{driveUrls[bundle.id] && <a href={driveUrls[bundle.id]} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-1 rounded-xl bg-surface px-3 text-xs font-extrabold">Drive 열기 <ExternalLink size={14} /></a>}<span className="rounded-full bg-surface px-3 py-2 text-xs font-extrabold">{bundleStatusLabel[bundle.status] ?? bundle.status}</span></div></div>)}{!projectBundles.length && <p className="py-6 text-center text-sm text-secondary">아직 생성된 Source Bundle이 없습니다.</p>}</div>
     </section>
   </div>;
 }
