@@ -1,4 +1,33 @@
-import { ArrowUpRight, CheckCircle2, CircleDashed, Lightbulb } from "lucide-react";
 import { PageHeader } from "@/components/app-shell";
+import { ResearchPipelineWorkspace } from "@/components/research-pipeline-workspace";
+import { prisma } from "@/lib/prisma";
 
-export default function Analysis() { return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10"><PageHeader eyebrow="WORK IN PROGRESS" title="정리·분석함" description="모은 자료에서 패턴과 다음 질문을 발견합니다." action={<button className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange px-4 py-3 text-sm font-semibold text-ink"><Lightbulb size={17} />초안 만들기</button>} /><div className="mt-7 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]"><section className="paper-card p-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-extrabold">성수동의 느린 변화</h2><p className="mt-1 text-sm text-secondary">핵심 질문 3개</p></div><span className="rounded-full bg-orange px-3 py-2 text-xs font-extrabold text-ink">진행 중</span></div><div className="mt-6 space-y-3">{[{ text: "오래된 공장과 새 카페가 공존한다", done: true }, { text: "사람들은 이 동네를 어떻게 부르는가", done: true }, { text: "소리와 냄새의 변화를 기록하기", done: false }].map((item) => <div className="flex items-center gap-3 rounded-xl bg-page p-4" key={item.text}>{item.done ? <CheckCircle2 size={19} /> : <CircleDashed size={19} className="text-orange" />}<span className={"text-sm font-semibold " + (item.done ? "text-secondary line-through" : "")}>{item.text}</span></div>)}</div></section><section className="collage-card bg-mint p-6"><Lightbulb className="mb-5" size={28} /><p className="text-sm font-extrabold text-orange">핵심 발견</p><h2 className="mt-2 text-xl font-extrabold leading-snug">“새로움은 오래된 것 위에 조용히 올라앉아 있었다.”</h2><p className="mt-4 text-sm leading-6 text-secondary">12개의 자료에서 반복적으로 발견된 감정과 장면을 한 문장으로 묶었습니다.</p><button className="mt-7 flex min-h-12 items-center gap-2 text-sm font-extrabold text-orange">문장 다듬기 <ArrowUpRight size={16} /></button></section></div></div> }
+export const dynamic = "force-dynamic";
+
+export default async function Analysis() {
+  const [projects, materials, bundles] = await Promise.all([
+    prisma.fieldDay.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ status: "asc" }, { fieldDate: "desc" }],
+      select: { id: true, title: true, location: true, fieldDate: true },
+    }),
+    prisma.material.findMany({
+      where: { deletedAt: null, uploadStatus: "STORED" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, fieldDayId: true, type: true, title: true, reviewStatus: true, isImportant: true, createdAt: true },
+    }),
+    prisma.sourceBundle.findMany({
+      orderBy: [{ fieldDayId: "asc" }, { version: "desc" }],
+      include: { _count: { select: { items: true, sourceDocuments: true } } },
+    }),
+  ]);
+
+  return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10">
+    <PageHeader eyebrow="RESEARCH · NOTEBOOKLM" title="정리·분석함" description="현장 Evidence를 검토하고 NotebookLM 연구에 사용할 Source Bundle을 준비합니다." />
+    <ResearchPipelineWorkspace
+      projects={projects.map((project) => ({ ...project, fieldDate: project.fieldDate.toISOString() }))}
+      initialMaterials={materials.map((material) => ({ ...material, createdAt: material.createdAt.toISOString() }))}
+      initialBundles={bundles.map((bundle) => ({ id: bundle.id, fieldDayId: bundle.fieldDayId, version: bundle.version, title: bundle.title, status: bundle.status, createdAt: bundle.createdAt.toISOString(), _count: bundle._count }))}
+    />
+  </div>;
+}
