@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "report:worker": "tsx scripts/gatherly-report-worker/index.ts",
     "bot:status": "tsx scripts/gatherly-status-bot/index.ts",
     "bot:status:check": "tsx scripts/gatherly-status-bot/check.ts",
     "bot:status:dev": "tsx watch scripts/gatherly-status-bot/index.ts"
