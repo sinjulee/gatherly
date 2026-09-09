@@ -8,6 +8,7 @@ prisma/*.db
 prisma/*.db-journal
 storage/
 logs/
+report-workspace/
 public/fonts/*.{woff,woff2,ttf,otf}
 !.gitkeep
 !public/fonts/Paperlogy-4Regular.ttf
