@@ -22,9 +22,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const fieldDayId = typeof body.fieldDayId === "string" ? body.fieldDayId : "";
     const title = typeof body.title === "string" ? body.title.trim().slice(0, 160) : "";
-    const materialIds = Array.isArray(body.materialIds)
-      ? [...new Set(body.materialIds.filter((id: unknown): id is string => typeof id === "string"))]
-      : [];
+    const rawMaterialIds: unknown[] = Array.isArray(body.materialIds) ? body.materialIds : [];
+    const materialIds: string[] = Array.from(
+      new Set(
+        rawMaterialIds
+          .filter((id): id is string => typeof id === "string")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    );
 
     if (!fieldDayId || !materialIds.length) {
       return NextResponse.json({ error: "현장과 연구에 포함할 자료를 선택해 주세요." }, { status: 400 });
