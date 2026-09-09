@@ -24,37 +24,132 @@ model FieldDay {
 }
 
 model Material {
-  id             String    @id @default(uuid())
+  id             String           @id @default(uuid())
   type           String
   title          String
   description    String?
   content        String?
   originalName   String?
   storedName     String?
-  relativePath   String?   @map("filePath")
+  relativePath   String?          @map("filePath")
   mimeType       String?
   sizeBytes      Int?
   sha256         String?
-  uploadStatus   String    @default("STORED")
+  uploadStatus   String           @default("STORED")
   uploadError    String?
-  clientUploadId String?   @unique
+  clientUploadId String?          @unique
   capturedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   deletedAt      DateTime?
   fieldDayId     String?
-  fieldDay       FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  fieldDay       FieldDay?        @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  reportLinks    ReportMaterial[]
 
   @@index([fieldDayId, deletedAt, createdAt])
   @@index([type, uploadStatus])
 }
 
 model Report {
-  id         String    @id @default(cuid())
-  title      String
-  status     String    @default("draft")
-  content    String?
-  updatedAt  DateTime  @updatedAt
-  fieldDayId String?
-  fieldDay   FieldDay? @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  id                String                @id @default(cuid())
+  title             String
+  templateType      String?
+  analysisDirection String?
+  purpose           String?
+  audience          String?
+  scope             String?
+  status            String                @default("DRAFT")
+  content           String?
+  currentVersionId  String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  deletedAt         DateTime?
+  fieldDayId        String?
+  fieldDay          FieldDay?             @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  materials         ReportMaterial[]
+  questions         ReportQuestion[]
+  analysisPlan      ReportAnalysisPlan?
+  versions          ReportVersion[]       @relation("ReportVersions")
+  currentVersion    ReportVersion?        @relation("CurrentReportVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  jobs              ReportJob[]
+
+  @@index([fieldDayId, deletedAt, updatedAt])
+  @@index([status, deletedAt])
+}
+
+model ReportMaterial {
+  id         String   @id @default(cuid())
+  reportId   String
+  materialId String
+  selected   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, materialId])
+  @@index([reportId, selected])
+}
+
+model ReportQuestion {
+  id        String   @id @default(cuid())
+  reportId  String
+  question  String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, order])
+}
+
+model ReportAnalysisPlan {
+  id                   String   @id @default(cuid())
+  reportId             String   @unique
+  objective            String?
+  keyQuestions         String?
+  researchRequirements String?
+  proposedSections     String?
+  expectedEvidence     String?
+  risks                String?
+  userApproved         Boolean  @default(false)
+  approvedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  report               Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model ReportVersion {
+  id              String   @id @default(cuid())
+  reportId        String
+  versionNumber   Int
+  versionType     String
+  parentVersionId String?
+  createdBy       String
+  snapshot        String
+  createdAt       DateTime @default(now())
+  report          Report   @relation("ReportVersions", fields: [reportId], references: [id], onDelete: Cascade)
+  currentFor      Report[] @relation("CurrentReportVersion")
+
+  @@unique([reportId, versionNumber])
+  @@index([reportId, createdAt])
+}
+
+model ReportJob {
+  id           String    @id @default(cuid())
+  reportId     String
+  jobType      String
+  status       String    @default("QUEUED")
+  stage        String?
+  progress     Int       @default(0)
+  attempt      Int       @default(0)
+  workspacePath String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  errorCode    String?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  report       Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([reportId, createdAt])
 }
