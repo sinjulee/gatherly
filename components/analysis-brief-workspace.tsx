@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clipboard, CloudUpload, ExternalLink, FileText, PlayCircle, Plus, RefreshCw } from "lucide-react";
+import { Check, Clipboard, CloudUpload, ExternalLink, FileText, Laptop, PlayCircle, Plus, RefreshCw, Smartphone } from "lucide-react";
 
 type Project = { id: string; title: string };
 type BundleRef = { id: string; version: number; title: string; status: string } | null;
@@ -185,7 +185,7 @@ export function AnalysisBriefWorkspace({ projects }: { projects: Project[] }) {
       await navigator.clipboard.writeText(data.instruction);
       setBriefs((current) => current.map((item) => item.id === brief.id ? { ...item, status: data.brief.status } : item));
       window.open(data.notebookUrl, "_blank", "noopener,noreferrer");
-      setNotice("NotebookLM 분석 지시문을 복사했고 Notebook을 열었습니다. 열린 NotebookLM 채팅창에 붙여넣어 분석을 시작하세요.");
+      setNotice("NotebookLM 분석 지시문을 복사했고 Notebook을 열었습니다. 데스크톱 NotebookLM 채팅창에 붙여넣어 분석을 시작하세요.");
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "NotebookLM 분석 준비에 실패했습니다.");
     } finally {
@@ -221,49 +221,15 @@ export function AnalysisBriefWorkspace({ projects }: { projects: Project[] }) {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="grid gap-3">
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="분석 제목 예: 2026 푸드위크 시장성 분석"
-            className="min-h-11 rounded-xl border border-ui bg-surface px-3 text-sm"
-          />
-          <textarea
-            value={goal}
-            onChange={(event) => setGoal(event.target.value)}
-            placeholder="필수: 이번 자료로 무엇을 판단하고 싶은지 입력하세요. 예) 푸드위크 참가 기업과 현장 트렌드를 바탕으로 2027년 식품시장 사업기회를 평가해줘."
-            className="min-h-32 rounded-xl border border-ui bg-surface p-3 text-sm"
-          />
-          <textarea
-            value={researchQuestions}
-            onChange={(event) => setResearchQuestions(event.target.value)}
-            placeholder="핵심 질문 예: 성장 카테고리는? 고객 니즈 변화는? 진입 기회와 리스크는?"
-            className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm"
-          />
+          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="분석 제목 예: 2026 푸드위크 시장성 분석" className="min-h-11 rounded-xl border border-ui bg-surface px-3 text-sm" />
+          <textarea value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="필수: 이번 자료로 무엇을 판단하고 싶은지 입력하세요." className="min-h-32 rounded-xl border border-ui bg-surface p-3 text-sm" />
+          <textarea value={researchQuestions} onChange={(event) => setResearchQuestions(event.target.value)} placeholder="핵심 질문 예: 성장 카테고리는? 고객 니즈 변화는? 진입 기회와 리스크는?" className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm" />
           <div className="grid gap-3 md:grid-cols-2">
-            <textarea
-              value={decisionContext}
-              onChange={(event) => setDecisionContext(event.target.value)}
-              placeholder="의사결정 맥락: 이 분석을 어디에 활용할지"
-              className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm"
-            />
-            <textarea
-              value={evaluationCriteria}
-              onChange={(event) => setEvaluationCriteria(event.target.value)}
-              placeholder="평가 기준: 시장규모, 성장성, 차별화, 실행난이도 등"
-              className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm"
-            />
+            <textarea value={decisionContext} onChange={(event) => setDecisionContext(event.target.value)} placeholder="의사결정 맥락: 이 분석을 어디에 활용할지" className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm" />
+            <textarea value={evaluationCriteria} onChange={(event) => setEvaluationCriteria(event.target.value)} placeholder="평가 기준: 시장규모, 성장성, 차별화, 실행난이도 등" className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm" />
           </div>
-          <textarea
-            value={additionalInstruction}
-            onChange={(event) => setAdditionalInstruction(event.target.value)}
-            placeholder="추가 지시: 반드시 포함할 관점, 제외할 내용, 원하는 보고서 톤 등"
-            className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm"
-          />
-          <button
-            disabled={!projectId || !goal.trim() || saving}
-            onClick={() => void createBrief()}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold disabled:opacity-40"
-          >
+          <textarea value={additionalInstruction} onChange={(event) => setAdditionalInstruction(event.target.value)} placeholder="추가 지시: 반드시 포함할 관점, 제외할 내용, 원하는 보고서 톤 등" className="min-h-24 rounded-xl border border-ui bg-surface p-3 text-sm" />
+          <button disabled={!projectId || !goal.trim() || saving} onClick={() => void createBrief()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold disabled:opacity-40">
             <Plus size={16} />{saving ? "저장·동기화 중…" : "Analysis Brief 만들기"}
           </button>
         </div>
@@ -303,32 +269,47 @@ export function AnalysisBriefWorkspace({ projects }: { projects: Project[] }) {
           </div>
 
           {latestBrief && (
-            <div className="rounded-xl bg-page p-4">
-              <p className="text-xs font-extrabold text-orange">NOTEBOOKLM ANALYSIS</p>
-              <h4 className="mt-1 font-extrabold">NotebookLM 분석 실행</h4>
-              <p className="mt-1 text-xs text-secondary">세 가지 준비가 완료되면 분석 지시문을 자동 복사하고 연결된 NotebookLM을 엽니다.</p>
-
-              <div className="mt-4 grid gap-2">
-                <ReadinessRow ready={sourceReady} label="1. Source Bundle Google Drive 동기화" />
-                <ReadinessRow ready={briefReady} label="2. Analysis Brief Google Docs 동기화" />
-                <ReadinessRow ready={notebookReady} label="3. 프로젝트 NotebookLM 연결" />
+            <>
+              <div className="rounded-xl bg-page p-4 md:hidden">
+                <div className="flex items-center gap-2"><Smartphone size={18} /><p className="text-xs font-extrabold text-orange">MOBILE WORKFLOW</p></div>
+                <h4 className="mt-2 font-extrabold">NotebookLM 분석 준비</h4>
+                <p className="mt-1 text-xs text-secondary">아이폰에서는 자료와 브리프 준비까지만 완료합니다. 실제 보고서 분석 실행은 데스크톱에서 이어가세요.</p>
+                <div className="mt-4 grid gap-2">
+                  <ReadinessRow ready={sourceReady} label="1. Source Bundle Google Drive 동기화" />
+                  <ReadinessRow ready={briefReady} label="2. Analysis Brief Google Docs 동기화" />
+                  <ReadinessRow ready={notebookReady} label="3. 프로젝트 NotebookLM 연결" />
+                </div>
+                {analysisReady ? (
+                  <div className="mt-4 rounded-xl bg-mint/40 p-3">
+                    <div className="flex items-center gap-2 text-sm font-extrabold"><Check size={16} />분석 준비 완료</div>
+                    <p className="mt-1 text-xs text-secondary">이 상태는 저장됩니다. Mac에서 Gatherly를 열어 같은 프로젝트의 ‘NotebookLM 분석 시작’을 누르면 바로 이어서 작업할 수 있습니다.</p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs font-semibold text-secondary">{!sourceReady ? "Source Bundle의 Drive 동기화를 먼저 완료해 주세요." : !briefReady ? "브리프의 Google Docs 동기화를 먼저 완료해 주세요." : "프로젝트 NotebookLM 주소를 연결해 주세요."}</p>
+                )}
+                <div className="mt-3 grid gap-2">
+                  {briefReady && <a href={documentUrl(latestBrief)} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-extrabold">브리프 문서 확인 <ExternalLink size={16} /></a>}
+                  {notebookReady && <a href={notebookUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-extrabold">NotebookLM 참고용 열기 <ExternalLink size={16} /></a>}
+                </div>
+                <div className="mt-4 flex items-start gap-2 rounded-xl bg-surface p-3 text-xs text-secondary"><Laptop className="mt-0.5 shrink-0" size={16} /><span>보고서 생성은 Mac/데스크톱 Gatherly에서 계속 진행합니다. 모바일에서 NotebookLM 채팅 입력창을 찾을 필요가 없습니다.</span></div>
               </div>
 
-              <button
-                disabled={!analysisReady || startingAnalysisId === latestBrief.id}
-                onClick={() => void startNotebookAnalysis(latestBrief)}
-                className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-mint px-4 text-sm font-extrabold disabled:opacity-40"
-              >
-                <PlayCircle size={18} />{startingAnalysisId === latestBrief.id ? "분석 준비 중…" : latestBrief.status === "IN_ANALYSIS" ? "NotebookLM 다시 열기" : "NotebookLM 분석 시작"}
-              </button>
-
-              {!analysisReady && (
-                <p className="mt-3 text-xs font-semibold text-secondary">
-                  {!sourceReady ? "먼저 연결 Source Bundle을 Google Drive에 동기화해 주세요." : !briefReady ? "먼저 브리프를 Google Docs에 동기화해 주세요." : "먼저 이 프로젝트의 NotebookLM 주소를 연결해 주세요."}
-                </p>
-              )}
-              {analysisReady && <p className="mt-3 text-xs font-semibold text-secondary">버튼을 누르면 분석 지시문이 클립보드에 복사됩니다. 열린 NotebookLM 채팅창에 붙여넣으면 됩니다.</p>}
-            </div>
+              <div className="hidden rounded-xl bg-page p-4 md:block">
+                <div className="flex items-center gap-2"><Laptop size={18} /><p className="text-xs font-extrabold text-orange">DESKTOP · NOTEBOOKLM ANALYSIS</p></div>
+                <h4 className="mt-2 font-extrabold">NotebookLM 분석 실행</h4>
+                <p className="mt-1 text-xs text-secondary">세 가지 준비가 완료되면 분석 지시문을 자동 복사하고 연결된 NotebookLM을 엽니다.</p>
+                <div className="mt-4 grid gap-2">
+                  <ReadinessRow ready={sourceReady} label="1. Source Bundle Google Drive 동기화" />
+                  <ReadinessRow ready={briefReady} label="2. Analysis Brief Google Docs 동기화" />
+                  <ReadinessRow ready={notebookReady} label="3. 프로젝트 NotebookLM 연결" />
+                </div>
+                <button disabled={!analysisReady || startingAnalysisId === latestBrief.id} onClick={() => void startNotebookAnalysis(latestBrief)} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-mint px-4 text-sm font-extrabold disabled:opacity-40">
+                  <PlayCircle size={18} />{startingAnalysisId === latestBrief.id ? "분석 준비 중…" : latestBrief.status === "IN_ANALYSIS" ? "NotebookLM 다시 열기" : "NotebookLM 분석 시작"}
+                </button>
+                {!analysisReady && <p className="mt-3 text-xs font-semibold text-secondary">{!sourceReady ? "먼저 연결 Source Bundle을 Google Drive에 동기화해 주세요." : !briefReady ? "먼저 브리프를 Google Docs에 동기화해 주세요." : "먼저 이 프로젝트의 NotebookLM 주소를 연결해 주세요."}</p>}
+                {analysisReady && <p className="mt-3 text-xs font-semibold text-secondary">버튼을 누르면 분석 지시문이 클립보드에 복사됩니다. 열린 데스크톱 NotebookLM 채팅창에 붙여넣으면 됩니다.</p>}
+              </div>
+            </>
           )}
         </div>
       </div>
