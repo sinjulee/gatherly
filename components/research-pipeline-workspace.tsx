@@ -35,11 +35,14 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
   const [driveUrls, setDriveUrls] = useState<Record<string, string>>({});
   const [notebookUrl, setNotebookUrl] = useState("");
   const [notebookSaving, setNotebookSaving] = useState(false);
+  const [notebookConnected, setNotebookConnected] = useState(false);
+  const [notebookEditing, setNotebookEditing] = useState(false);
 
   const projectMaterials = useMemo(() => materials.filter((item) => item.fieldDayId === projectId), [materials, projectId]);
   const projectBundles = useMemo(() => bundles.filter((item) => item.fieldDayId === projectId), [bundles, projectId]);
   const curatedCount = projectMaterials.filter((item) => ["CURATED", "SYNC_READY", "SYNCED"].includes(item.reviewStatus)).length;
   const latestSyncedBundle = projectBundles.find((bundle) => bundle.status === "SYNCED");
+  const selectedProject = projects.find((project) => project.id === projectId);
 
   useEffect(() => {
     if (!projectId) return;
@@ -48,9 +51,18 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
       try {
         const response = await fetch(`/api/research/notebook-link?fieldDayId=${encodeURIComponent(projectId)}`, { cache: "no-store", signal: controller.signal });
         const data = await response.json();
-        if (response.ok) setNotebookUrl(data.link?.notebookUrl || "");
+        if (response.ok) {
+          const savedUrl = data.link?.notebookUrl || "";
+          setNotebookUrl(savedUrl);
+          setNotebookConnected(Boolean(savedUrl));
+          setNotebookEditing(!savedUrl);
+        }
       } catch {
-        if (!controller.signal.aborted) setNotebookUrl("");
+        if (!controller.signal.aborted) {
+          setNotebookUrl("");
+          setNotebookConnected(false);
+          setNotebookEditing(true);
+        }
       }
     })();
     return () => controller.abort();
@@ -124,8 +136,11 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "NotebookLM 연결정보를 저장하지 못했습니다.");
       setNotebookUrl(data.link.notebookUrl);
-      setNotice("이 현장 프로젝트의 NotebookLM 연결주소를 저장했습니다.");
+      setNotebookConnected(true);
+      setNotebookEditing(false);
+      setNotice("");
     } catch (cause) {
+      setNotebookConnected(false);
       setNotice(cause instanceof Error ? cause.message : "NotebookLM 연결정보를 저장하지 못했습니다.");
     } finally { setNotebookSaving(false); }
   }
@@ -134,7 +149,7 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     <section className="paper-card p-5 md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div><p className="text-sm font-semibold text-secondary">RESEARCH PIPELINE</p><h2 className="mt-1 text-2xl font-extrabold">NotebookLM 연구 준비</h2><p className="mt-1 text-sm text-secondary">현장자료를 검토하고 연구에 사용할 Evidence만 Source Bundle로 묶습니다.</p></div>
-        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); setDriveUrls({}); setNotebookUrl(""); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); setDriveUrls({}); setNotebookUrl(""); setNotebookConnected(false); setNotebookEditing(false); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       </div>
       {notice && <p className="mt-4 rounded-lg bg-page p-3 text-sm text-secondary">{notice}</p>}
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><Metric label="전체 Evidence" value={projectMaterials.length} icon={<Database size={18} />} /><Metric label="연구선정" value={curatedCount} icon={<Check size={18} />} /><Metric label="Source Bundle" value={projectBundles.length} icon={<FileStack size={18} />} /></div>
@@ -151,7 +166,22 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     </section>
 
     <section className="collage-card bg-mint p-5 md:p-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-sm font-extrabold text-orange">NOTEBOOKLM HANDOFF</p><h3 className="mt-1 text-xl font-extrabold">프로젝트 Notebook 연결</h3><p className="mt-1 text-sm text-secondary">Drive Source가 준비되면 해당 프로젝트의 NotebookLM 주소를 저장해 바로 연구를 이어갑니다.</p></div><div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl"><input type="url" value={notebookUrl} onChange={(event) => setNotebookUrl(event.target.value)} placeholder="https://notebooklm.google.com/..." className="min-h-11 flex-1 rounded-xl border border-ui bg-surface px-3 text-sm" /><button disabled={!projectId || !notebookUrl.trim() || notebookSaving} onClick={() => void saveNotebookLink()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-extrabold disabled:opacity-40"><Save size={16} />{notebookSaving ? "저장 중…" : "주소 저장"}</button>{notebookUrl && <a href={notebookUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold">NotebookLM 열기 <ExternalLink size={16} /></a>}</div></div>{latestSyncedBundle ? <p className="mt-4 text-xs font-semibold text-secondary">최근 Drive 동기화 Bundle: v{latestSyncedBundle.version} · NotebookLM에서 해당 Google Drive Source를 등록해 분석을 시작할 수 있습니다.</p> : <p className="mt-4 text-xs font-semibold text-secondary">먼저 Source Bundle의 Google Drive 동기화를 완료해 주세요.</p>}</section>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div><p className="text-sm font-extrabold text-orange">NOTEBOOKLM HANDOFF</p><h3 className="mt-1 text-xl font-extrabold">프로젝트 Notebook 연결</h3><p className="mt-1 text-sm text-secondary">Drive Source가 준비되면 해당 프로젝트의 NotebookLM 주소를 저장해 바로 연구를 이어갑니다.</p></div>
+        <div className="w-full xl:max-w-2xl">
+          {notebookConnected && !notebookEditing ? <div className="rounded-2xl bg-surface p-4 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-mint"><Check size={16} /></span><strong className="text-sm">NotebookLM 연결됨</strong></div><p className="mt-2 text-sm font-extrabold">{selectedProject?.title ?? "선택된 프로젝트"}</p><p className="mt-1 truncate text-xs text-secondary">{notebookUrl}</p></div>
+              <div className="flex shrink-0 flex-wrap gap-2"><a href={notebookUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold">NotebookLM 열기 <ExternalLink size={16} /></a><button onClick={() => setNotebookEditing(true)} className="min-h-11 rounded-xl bg-page px-4 text-sm font-extrabold">주소 변경</button></div>
+            </div>
+          </div> : <div className="rounded-2xl bg-surface p-4">
+            <p className="mb-3 text-sm font-extrabold">{notebookConnected ? "NotebookLM 주소 변경" : "NotebookLM 주소 연결"}</p>
+            <div className="flex flex-col gap-2 sm:flex-row"><input type="url" value={notebookUrl} onChange={(event) => setNotebookUrl(event.target.value)} placeholder="https://notebook.google.com/notebook/..." className="min-h-11 flex-1 rounded-xl border border-ui bg-surface px-3 text-sm" /><button disabled={!projectId || !notebookUrl.trim() || notebookSaving} onClick={() => void saveNotebookLink()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-40"><Save size={16} />{notebookSaving ? "저장 중…" : notebookConnected ? "변경 저장" : "주소 저장"}</button>{notebookConnected && <button onClick={() => setNotebookEditing(false)} className="min-h-11 rounded-xl bg-page px-4 text-sm font-extrabold">취소</button>}</div>
+          </div>}
+        </div>
+      </div>
+      {latestSyncedBundle ? <p className="mt-4 text-xs font-semibold text-secondary">최근 Drive 동기화 Bundle: v{latestSyncedBundle.version} · NotebookLM에서 해당 Google Drive Source를 등록해 분석을 시작할 수 있습니다.</p> : <p className="mt-4 text-xs font-semibold text-secondary">먼저 Source Bundle의 Google Drive 동기화를 완료해 주세요.</p>}
+    </section>
   </div>;
 }
 
