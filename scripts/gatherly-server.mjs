@@ -29,17 +29,35 @@ const args = mode === "dev"
   : [nextBin, "start", "-H", HOST, "-p", String(PORT)];
 
 console.log(`▶ Gatherly ${mode} server: http://${HOST}:${PORT}`);
-console.log("   Guard: duplicate listeners on port 3001 are blocked before startup.\n");
+console.log("   Guard: duplicate listeners on port 3001 are blocked before startup.");
 
 const child = spawn(process.execPath, args, { stdio: "inherit", env: process.env });
+const workerEnabled = process.env.GATHERLY_QUICK_ANALYSIS_WORKER !== "0";
+const workerScript = new URL("./gatherly-quick-analysis-worker.mjs", import.meta.url).pathname;
+const worker = workerEnabled
+  ? spawn(process.execPath, [workerScript], { stdio: "inherit", env: process.env })
+  : null;
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => {
-    if (!child.killed) child.kill(signal);
-  });
+if (worker) console.log("   Quick Analysis: Mac mini Codex worker started with the web server.\n");
+else console.log("   Quick Analysis: worker disabled by GATHERLY_QUICK_ANALYSIS_WORKER=0.\n");
+
+function stopChildren(signal) {
+  if (!child.killed) child.kill(signal);
+  if (worker && !worker.killed) worker.kill(signal);
 }
 
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => stopChildren(signal));
+}
+
+worker?.on("exit", (code, signal) => {
+  if (!child.killed && code !== 0) {
+    console.error(`[quick-analysis] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}). Restart Gatherly after checking the log.`);
+  }
+});
+
 child.on("exit", (code, signal) => {
+  if (worker && !worker.killed) worker.kill("SIGTERM");
   if (signal) process.kill(process.pid, signal);
   process.exit(code ?? 0);
 });
