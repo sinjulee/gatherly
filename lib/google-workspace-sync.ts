@@ -73,6 +73,14 @@ async function ensureFolder(token: string, name: string, parentId?: string) {
   return (await findFolder(token, name, parentId)) || createFolder(token, name, parentId);
 }
 
+async function ensureProjectFolder(token: string, projectTitle: string, fieldDayId: string) {
+  const configuredRoot = process.env.GATHERLY_GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim();
+  const root = configuredRoot ? { id: configuredRoot } : await ensureFolder(token, "Gatherly");
+  const projectsFolder = await ensureFolder(token, "Projects", root.id);
+  const projectFolder = await ensureFolder(token, `${projectTitle} (${fieldDayId.slice(0, 8)})`, projectsFolder.id);
+  return { root, projectsFolder, projectFolder };
+}
+
 async function createGoogleDoc(token: string, name: string, parentId: string) {
   const response = await googleFetch(`${DRIVE_API}/files?fields=id,name,webViewLink`, token, {
     method: "POST",
@@ -128,10 +136,7 @@ export async function syncSourceDocumentsToGoogleDrive(input: {
   documents: Array<{ id: string; documentType: string; localPath: string | null; driveFileId: string | null }>;
 }) {
   const token = await getAccessToken();
-  const configuredRoot = process.env.GATHERLY_GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim();
-  const root = configuredRoot ? { id: configuredRoot } : await ensureFolder(token, "Gatherly");
-  const projectsFolder = await ensureFolder(token, "Projects", root.id);
-  const projectFolder = await ensureFolder(token, `${input.projectTitle} (${input.fieldDayId.slice(0, 8)})`, projectsFolder.id);
+  const { root, projectFolder } = await ensureProjectFolder(token, input.projectTitle, input.fieldDayId);
   const sourceFolder = await ensureFolder(token, "01_Source", projectFolder.id);
   const versionFolder = await ensureFolder(token, `v${input.bundleVersion}`, sourceFolder.id);
 
@@ -153,5 +158,64 @@ export async function syncSourceDocumentsToGoogleDrive(input: {
     versionFolderId: versionFolder.id,
     versionFolderUrl: `https://drive.google.com/drive/folders/${versionFolder.id}`,
     synced,
+  };
+}
+
+function section(label: string, value: string | null | undefined) {
+  return value?.trim() ? `${label}\n${value.trim()}\n` : "";
+}
+
+export async function syncAnalysisBriefToGoogleDrive(input: {
+  projectTitle: string;
+  fieldDayId: string;
+  briefId: string;
+  version: number;
+  title: string;
+  goal: string;
+  researchQuestions?: string | null;
+  decisionContext?: string | null;
+  evaluationCriteria?: string | null;
+  targetScope?: string | null;
+  excludeScope?: string | null;
+  outputType?: string | null;
+  additionalInstruction?: string | null;
+  sourceBundleVersion?: number | null;
+  driveFileId?: string | null;
+}) {
+  const token = await getAccessToken();
+  const { root, projectFolder } = await ensureProjectFolder(token, input.projectTitle, input.fieldDayId);
+  const briefFolder = await ensureFolder(token, "02_Analysis_Brief", projectFolder.id);
+  const name = `v${input.version} ${input.title}`.slice(0, 180);
+  let doc = input.driveFileId ? { id: input.driveFileId, name } : await findFileByName(token, name, briefFolder.id);
+  if (!doc) doc = await createGoogleDoc(token, name, briefFolder.id);
+
+  const content = [
+    `Gatherly Analysis Brief v${input.version}`,
+    `프로젝트: ${input.projectTitle}`,
+    `브리프 ID: ${input.briefId}`,
+    input.sourceBundleVersion ? `연결 Source Bundle: v${input.sourceBundleVersion}` : "연결 Source Bundle: 없음",
+    "",
+    section("분석 제목", input.title),
+    section("분석 방향 / 목표", input.goal),
+    section("핵심 연구 질문", input.researchQuestions),
+    section("의사결정 맥락", input.decisionContext),
+    section("평가 기준", input.evaluationCriteria),
+    section("분석 범위", input.targetScope),
+    section("제외 범위", input.excludeScope),
+    section("결과물 유형", input.outputType),
+    section("추가 지시", input.additionalInstruction),
+    "NotebookLM 작업 지시",
+    "이 Analysis Brief와 프로젝트 Source를 근거로 분석하세요. 각 핵심 주장에는 근거가 되는 Source를 연결하고, 현장 Evidence와 외부 조사 내용을 구분해 설명하세요. 불확실한 내용은 추정으로 표시하고, 최종 결과는 의사결정에 바로 사용할 수 있는 구조화된 보고서 형태로 작성하세요.",
+  ].filter(Boolean).join("\n");
+
+  await replaceGoogleDocText(token, doc.id, content);
+
+  return {
+    rootFolderId: root.id,
+    projectFolderId: projectFolder.id,
+    briefFolderId: briefFolder.id,
+    briefFolderUrl: `https://drive.google.com/drive/folders/${briefFolder.id}`,
+    driveFileId: doc.id,
+    documentUrl: `https://docs.google.com/document/d/${doc.id}/edit`,
   };
 }
