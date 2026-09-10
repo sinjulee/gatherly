@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/app-shell";
+import { AnalysisBriefWorkspace } from "@/components/analysis-brief-workspace";
 import { ResearchPipelineWorkspace } from "@/components/research-pipeline-workspace";
 import { prisma } from "@/lib/prisma";
 
@@ -22,12 +23,15 @@ export default async function Analysis() {
     }),
   ]);
 
+  const projectOptions = projects.map((project) => ({ id: project.id, title: project.title }));
+
   return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10">
-    <PageHeader eyebrow="RESEARCH · NOTEBOOKLM" title="정리·분석함" description="현장 Evidence를 검토하고 NotebookLM 연구에 사용할 Source Bundle을 준비합니다." />
+    <PageHeader eyebrow="RESEARCH · NOTEBOOKLM" title="정리·분석함" description="현장 Evidence를 검토하고 NotebookLM 연구에 사용할 Source Bundle과 Analysis Brief를 준비합니다." />
     <ResearchPipelineWorkspace
       projects={projects.map((project) => ({ ...project, fieldDate: project.fieldDate.toISOString() }))}
       initialMaterials={materials.map((material) => ({ ...material, createdAt: material.createdAt.toISOString() }))}
       initialBundles={bundles.map((bundle) => ({ id: bundle.id, fieldDayId: bundle.fieldDayId, version: bundle.version, title: bundle.title, status: bundle.status, createdAt: bundle.createdAt.toISOString(), _count: bundle._count }))}
     />
+    <AnalysisBriefWorkspace projects={projectOptions} />
   </div>;
 }
