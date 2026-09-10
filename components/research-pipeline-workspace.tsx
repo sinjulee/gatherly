@@ -42,7 +42,7 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
   const latestSyncedBundle = projectBundles.find((bundle) => bundle.status === "SYNCED");
 
   useEffect(() => {
-    if (!projectId) { setNotebookUrl(""); return; }
+    if (!projectId) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -134,7 +134,7 @@ export function ResearchPipelineWorkspace({ projects, initialMaterials, initialB
     <section className="paper-card p-5 md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div><p className="text-sm font-semibold text-secondary">RESEARCH PIPELINE</p><h2 className="mt-1 text-2xl font-extrabold">NotebookLM 연구 준비</h2><p className="mt-1 text-sm text-secondary">현장자료를 검토하고 연구에 사용할 Evidence만 Source Bundle로 묶습니다.</p></div>
-        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); setDriveUrls({}); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+        <label className="text-sm font-semibold">현장 프로젝트<select className="ml-3 min-h-11 rounded-lg border border-ui bg-surface px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelected([]); setDriveUrls({}); setNotebookUrl(""); }}><option value="">선택</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       </div>
       {notice && <p className="mt-4 rounded-lg bg-page p-3 text-sm text-secondary">{notice}</p>}
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><Metric label="전체 Evidence" value={projectMaterials.length} icon={<Database size={18} />} /><Metric label="연구선정" value={curatedCount} icon={<Check size={18} />} /><Metric label="Source Bundle" value={projectBundles.length} icon={<FileStack size={18} />} /></div>
