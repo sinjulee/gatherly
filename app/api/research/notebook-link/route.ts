@@ -19,7 +19,7 @@ export async function PUT(request: Request) {
 
     let parsed: URL;
     try { parsed = new URL(notebookUrl); } catch { return NextResponse.json({ error: "올바른 NotebookLM URL이 아닙니다." }, { status: 400 }); }
-    const allowedHosts = new Set(["notebooklm.google.com", "gemini.google.com"]);
+    const allowedHosts = new Set(["notebook.google.com", "notebooklm.google.com", "gemini.google.com"]);
     if (parsed.protocol !== "https:" || !allowedHosts.has(parsed.hostname)) return NextResponse.json({ error: "NotebookLM 또는 Gemini Notebook URL만 저장할 수 있습니다." }, { status: 400 });
 
     const project = await prisma.fieldDay.findFirst({ where: { id: fieldDayId, deletedAt: null }, select: { id: true } });
