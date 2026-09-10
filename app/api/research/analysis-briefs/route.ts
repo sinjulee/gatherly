@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { syncAnalysisBriefToGoogleDrive } from "@/lib/google-workspace-sync";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function cleanText(value: unknown, max = 4000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function documentUrl(driveFileId: string | null) {
+  return driveFileId ? `https://docs.google.com/document/d/${driveFileId}/edit` : null;
 }
 
 export async function GET(request: Request) {
@@ -23,7 +31,9 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ briefs });
+  return NextResponse.json({
+    briefs: briefs.map((brief) => ({ ...brief, documentUrl: documentUrl(brief.driveFileId) })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
 
     const project = await prisma.fieldDay.findFirst({
       where: { id: fieldDayId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, title: true },
     });
 
     if (!project) {
@@ -94,7 +104,66 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ brief }, { status: 201 });
+    const job = await prisma.syncJob.create({
+      data: {
+        fieldDayId,
+        sourceBundleId: sourceBundle?.id ?? null,
+        analysisBriefId: brief.id,
+        jobType: "GOOGLE_DRIVE_ANALYSIS_BRIEF_SYNC",
+        status: "RUNNING",
+        startedAt: new Date(),
+        attemptCount: 1,
+      },
+    });
+
+    try {
+      const sync = await syncAnalysisBriefToGoogleDrive({
+        projectTitle: project.title,
+        fieldDayId,
+        briefId: brief.id,
+        version: brief.version,
+        title: brief.title,
+        goal: brief.goal,
+        researchQuestions: brief.researchQuestions,
+        decisionContext: brief.decisionContext,
+        evaluationCriteria: brief.evaluationCriteria,
+        targetScope: brief.targetScope,
+        excludeScope: brief.excludeScope,
+        outputType: brief.outputType,
+        additionalInstruction: brief.additionalInstruction,
+        sourceBundleVersion: brief.sourceBundle?.version ?? null,
+        driveFileId: brief.driveFileId,
+      });
+
+      const syncedBrief = await prisma.analysisBrief.update({
+        where: { id: brief.id },
+        data: { driveFileId: sync.driveFileId, status: "SYNCED" },
+        include: {
+          sourceBundle: {
+            select: { id: true, version: true, title: true, status: true },
+          },
+        },
+      });
+
+      await prisma.syncJob.update({
+        where: { id: job.id },
+        data: { status: "SUCCEEDED", completedAt: new Date() },
+      });
+
+      return NextResponse.json({ brief: { ...syncedBrief, documentUrl: sync.documentUrl }, sync }, { status: 201 });
+    } catch (cause) {
+      const safeMessage = cause instanceof Error ? cause.message.slice(0, 240) : "GOOGLE_DRIVE_ANALYSIS_BRIEF_SYNC_FAILED";
+      await prisma.syncJob.update({
+        where: { id: job.id },
+        data: { status: "FAILED", errorMessageSafe: safeMessage, completedAt: new Date() },
+      });
+      console.error("[analysis-briefs] Google Docs sync failed", cause);
+      return NextResponse.json({
+        brief: { ...brief, documentUrl: null },
+        warning: "분석 브리프는 저장했지만 Google Docs 동기화에는 실패했습니다.",
+        syncErrorCode: safeMessage,
+      }, { status: 201 });
+    }
   } catch (cause) {
     console.error("[analysis-briefs] create failed", cause);
     return NextResponse.json({ error: "분석 브리프를 저장하지 못했습니다." }, { status: 500 });
