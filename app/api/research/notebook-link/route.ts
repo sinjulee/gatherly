@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function normalizeNotebookUrl(input: string) {
+  const trimmed = input.trim();
+  const markdownMatch = trimmed.match(/^\[[^\]]*\]\((https:\/\/[^\s)]+)\)$/i);
+  return markdownMatch?.[1] ?? trimmed;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const fieldDayId = searchParams.get("fieldDayId");
@@ -13,7 +19,8 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     const fieldDayId = typeof body.fieldDayId === "string" ? body.fieldDayId.trim() : "";
-    const notebookUrl = typeof body.notebookUrl === "string" ? body.notebookUrl.trim() : "";
+    const rawNotebookUrl = typeof body.notebookUrl === "string" ? body.notebookUrl : "";
+    const notebookUrl = normalizeNotebookUrl(rawNotebookUrl);
     const notebookLabel = typeof body.notebookLabel === "string" ? body.notebookLabel.trim().slice(0, 160) : null;
     if (!fieldDayId || !notebookUrl) return NextResponse.json({ error: "현장과 NotebookLM URL을 입력해 주세요." }, { status: 400 });
 
