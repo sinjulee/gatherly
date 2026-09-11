@@ -16,6 +16,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "worker:quick-analysis": "node scripts/gatherly-quick-analysis-worker.mjs",
+    "worker:final-report": "node scripts/gatherly-final-report-worker.mjs",
     "bot:status": "tsx scripts/gatherly-status-bot/index.ts",
     "bot:status:check": "tsx scripts/gatherly-status-bot/check.ts",
     "bot:status:dev": "tsx watch scripts/gatherly-status-bot/index.ts"
