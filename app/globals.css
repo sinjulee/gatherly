@@ -71,6 +71,34 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   display: none !important;
 }
 
+/* Inbox is used mainly on iPhone in the field. Keep every capture/edit control inside
+   the viewport even when a project title or Safari form control has a large intrinsic width. */
+.inbox-page,
+.inbox-page > *,
+.inbox-page .paper-card,
+.inbox-page .paper-card > *,
+.inbox-page form,
+.inbox-page label,
+.inbox-page .grid,
+.inbox-page .flex {
+  min-width: 0;
+  max-width: 100%;
+}
+.inbox-page .paper-card {
+  width: 100%;
+  overflow-x: hidden;
+}
+.inbox-page input,
+.inbox-page textarea,
+.inbox-page select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.inbox-page button {
+  max-width: 100%;
+}
+
 @media (max-width: 767px) {
   .paper-card {
     width: 100%;
@@ -99,6 +127,23 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   .paper-card select,
   .paper-card button {
     box-sizing: border-box;
+  }
+
+  .inbox-page .paper-card {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .inbox-page label:has(> select) {
+    align-items: stretch !important;
+  }
+  .inbox-page label:has(> select) > select {
+    width: 100% !important;
+  }
+  .inbox-page form > button[type="submit"] {
+    width: 100%;
+  }
+  .inbox-page .paper-card .flex.flex-wrap > select {
+    flex: 1 1 100%;
   }
 }
 @media (min-width: 1024px) { .mobile-bottom-space { padding-bottom: 0; } }
