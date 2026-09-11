@@ -1,5 +1,18 @@
-import { ArrowRight, FileText, MoreHorizontal, Plus } from "lucide-react";
 import { PageHeader } from "@/components/app-shell";
+import { FinalReportWorkspace } from "@/components/final-report-workspace";
+import { prisma } from "@/lib/prisma";
 
-const reports = [{ title: "성수동의 느린 변화", date: "2026. 09. 05", status: "작성 중", color: "bg-orange" }, { title: "동네 목욕탕의 마지막 여름", date: "2026. 08. 22", status: "완료", color: "bg-mint" }, { title: "새벽 시장 관찰일지", date: "2026. 08. 11", status: "완료", color: "bg-page" }];
-export default function Reports() { return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10"><PageHeader eyebrow="3 DOCUMENTS · REPORTS" title="최종 보고서" description="관찰을 오래 남을 이야기로 편집합니다." action={<button className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white"><Plus size={17} />새 보고서</button>} /><div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{reports.map((report) => <article className="paper-card group overflow-hidden" key={report.title}><div className={"relative flex h-36 items-end p-5 " + report.color}><FileText size={42} strokeWidth={1.2} /><span className="absolute right-4 top-4 rounded-full bg-surface px-3 py-2 text-[11px] font-extrabold">{report.status}</span></div><div className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-keep font-extrabold leading-snug">{report.title}</h2><p className="mt-2 text-xs text-secondary">마지막 수정 · {report.date}</p></div><button aria-label="더 보기" className="shrink-0 text-secondary"><MoreHorizontal size={19} /></button></div><button className="mt-5 flex min-h-12 items-center gap-2 text-sm font-extrabold text-orange">열어보기 <ArrowRight size={16} className="transition group-hover:translate-x-1" /></button></div></article>)}</div></div> }
+export const dynamic = "force-dynamic";
+
+export default async function Reports() {
+  const projects = await prisma.fieldDay.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ status: "asc" }, { fieldDate: "desc" }],
+    select: { id: true, title: true },
+  });
+
+  return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10">
+    <PageHeader eyebrow="FINAL REPORT · CODEX" title="최종 보고서" description="현장 Evidence와 분석 결과를 근거로 Codex CLI가 보고서 초안을 만들고, 수정·버전관리·Google Docs 출력을 이어갑니다." />
+    <FinalReportWorkspace projects={projects} />
+  </div>;
+}
