@@ -1,7 +1,5 @@
 import { PageHeader } from "@/components/app-shell";
-import { AnalysisBriefWorkspace } from "@/components/analysis-brief-workspace";
-import { QuickAnalysisWorkspace } from "@/components/quick-analysis-workspace";
-import { ResearchPipelineWorkspace } from "@/components/research-pipeline-workspace";
+import { AnalysisWorkspaceShell } from "@/components/analysis-workspace-shell";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -24,16 +22,12 @@ export default async function Analysis() {
     }),
   ]);
 
-  const projectOptions = projects.map((project) => ({ id: project.id, title: project.title }));
-
   return <div className="mx-auto max-w-[1320px] px-5 py-7 md:px-10 md:py-10">
     <PageHeader eyebrow="FIELD AI · RESEARCH" title="정리·분석함" description="현장에서는 Mac mini + Codex로 빠르게 분석하고, 필요할 때 NotebookLM으로 심층 연구를 확장합니다." />
-    <QuickAnalysisWorkspace projects={projectOptions} />
-    <ResearchPipelineWorkspace
+    <AnalysisWorkspaceShell
       projects={projects.map((project) => ({ ...project, fieldDate: project.fieldDate.toISOString() }))}
       initialMaterials={materials.map((material) => ({ ...material, createdAt: material.createdAt.toISOString() }))}
       initialBundles={bundles.map((bundle) => ({ id: bundle.id, fieldDayId: bundle.fieldDayId, version: bundle.version, title: bundle.title, status: bundle.status, createdAt: bundle.createdAt.toISOString(), _count: bundle._count }))}
     />
-    <AnalysisBriefWorkspace projects={projectOptions} />
   </div>;
 }
