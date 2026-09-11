@@ -63,61 +63,30 @@ model Material {
 model Report {
   id                      String                      @id @default(cuid()) @map("report_id")
   title                   String
-  status                  String                      @default("draft")
+  status                  String                      @default("DRAFT")
   content                 String?
+  instruction             String?
   reportVersion           Int                         @default(1) @map("report_version")
   structuredResult        String?                     @map("structured_result")
   structuredSchemaVersion String                      @default("gatherly.report.v1") @map("structured_schema_version")
+  parentReportId          String?
+  googleDocId             String?
+  outputPath              String?
+  errorMessageSafe        String?
   createdAt               DateTime                    @default(now())
+  startedAt               DateTime?
+  completedAt             DateTime?
   updatedAt               DateTime                    @updatedAt
   fieldDayId              String?
   fieldDay                FieldDay?                   @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  parentReport            Report?                     @relation("ReportRevisions", fields: [parentReportId], references: [id], onDelete: SetNull)
+  revisions               Report[]                    @relation("ReportRevisions")
   versions                ReportVersion[]
   integrationDeliveries   ReportIntegrationDelivery[]
 
-  @@index([fieldDayId, updatedAt])
-  @@index([status, updatedAt])
-}
-
-model ReportVersion {
-  id                      String                      @id @default(cuid())
-  reportId                String
-  reportVersion           Int                         @map("report_version")
-  versionType             String                      @default("DRAFT")
-  status                  String                      @default("DRAFT")
-  content                 String?
-  structuredResult        String?                     @map("structured_result")
-  structuredSchemaVersion String                      @default("gatherly.report.v1") @map("structured_schema_version")
-  createdBy               String                      @default("SYSTEM")
-  createdAt               DateTime                    @default(now())
-  report                  Report                      @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  integrationDeliveries   ReportIntegrationDelivery[]
-
-  @@unique([reportId, reportVersion])
-  @@index([reportId, createdAt])
-}
-
-model ReportIntegrationDelivery {
-  id               String         @id @default(cuid())
-  reportId         String
-  reportVersionId  String
-  destination      String         @default("PLANFRAME")
-  idempotencyKey   String         @unique
-  status           String         @default("QUEUED")
-  attempt          Int            @default(0)
-  payloadHash      String?
-  httpStatus       Int?
-  externalReportId String?
-  sentAt           DateTime?
-  errorCode        String?
-  errorMessage     String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  report           Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  reportVersion    ReportVersion  @relation(fields: [reportVersionId], references: [id], onDelete: Cascade)
-
-  @@index([reportId, destination, status])
-  @@index([reportVersionId, destination])
+  @@index([fieldDayId, createdAt])
+  @@index([status, createdAt])
+  @@index([parentReportId])
 }
 
 model SourceBundle {
@@ -279,19 +248,37 @@ model ResearchResult {
 }
 
 model ReportVersion {
-  id                String            @id @default(cuid())
-  researchResultId  String
-  versionNo         Int
-  title             String
+  id String @id @default(cuid())
+
+  // Gatherly final report version contract
+  reportId                String?
+  reportVersion           Int?    @map("report_version")
+  versionType             String  @default("DRAFT")
+  content                 String?
+  structuredResult        String? @map("structured_result")
+  structuredSchemaVersion String  @default("gatherly.report.v1") @map("structured_schema_version")
+  createdBy               String  @default("SYSTEM")
+
+  // NotebookLM research-result version compatibility
+  researchResultId  String?
+  versionNo         Int?
+  title             String?
   googleDocId       String?
   localSnapshotPath String?
   revisionReason    String?
-  status            String            @default("DRAFT")
-  createdAt         DateTime          @default(now())
-  researchResult    ResearchResult    @relation(fields: [researchResultId], references: [id], onDelete: Cascade)
-  revisionRequests  RevisionRequest[]
 
+  status    String   @default("DRAFT")
+  createdAt DateTime @default(now())
+
+  report                Report?                     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  researchResult        ResearchResult?             @relation(fields: [researchResultId], references: [id], onDelete: Cascade)
+  revisionRequests      RevisionRequest[]
+  integrationDeliveries ReportIntegrationDelivery[]
+
+  @@unique([reportId, reportVersion])
   @@unique([researchResultId, versionNo])
+  @@index([reportId, createdAt])
+  @@index([researchResultId, createdAt])
   @@index([status])
 }
 
@@ -306,4 +293,27 @@ model RevisionRequest {
   reportVersion   ReportVersion @relation(fields: [reportVersionId], references: [id], onDelete: Cascade)
 
   @@index([reportVersionId, status])
+}
+
+model ReportIntegrationDelivery {
+  id               String        @id @default(cuid())
+  reportId         String
+  reportVersionId  String
+  destination      String        @default("PLANFRAME")
+  idempotencyKey   String        @unique
+  status           String        @default("QUEUED")
+  attempt          Int           @default(0)
+  payloadHash      String?
+  httpStatus       Int?
+  externalReportId String?
+  sentAt           DateTime?
+  errorCode        String?
+  errorMessage     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  report           Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportVersion    ReportVersion @relation(fields: [reportVersionId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, destination, status])
+  @@index([reportVersionId, destination])
 }
