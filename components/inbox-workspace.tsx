@@ -185,58 +185,44 @@ export function InboxWorkspace({ projects }: { projects: FieldDaySummary[] }) {
   const failed = useMemo(() => queue.filter((item) => item.state === "FAILED").length, [queue]);
 
   return (
-    <div className="mt-7 grid gap-5">
-      <section className="paper-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 border-b border-ui pb-5 md:flex-row md:items-end md:justify-between">
-          <div>
+    <div className="mt-7 grid min-w-0 max-w-full grid-cols-1 gap-5 overflow-hidden">
+      <section className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
+        <div className="flex min-w-0 flex-col gap-4 border-b border-ui pb-5">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-secondary">자료 남기기</p>
             <h2 className="mt-1 text-2xl font-extrabold">자료수집함</h2>
-            <p className="mt-1 text-sm text-secondary">파일은 항목별로 저장 여부를 확인한 뒤 완료 처리됩니다.</p>
+            <p className="mt-1 break-words text-sm text-secondary">파일은 항목별로 저장 여부를 확인한 뒤 완료 처리됩니다.</p>
           </div>
-          <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
-            저장할 현장
-            <select className="min-h-11 rounded-lg border border-ui bg-surface px-3" value={fieldDayId} onChange={(event) => setFieldDayId(event.target.value)}>
+          <label className="flex w-full min-w-0 max-w-full flex-col items-stretch gap-2 text-sm font-semibold md:flex-row md:items-center md:justify-between">
+            <span className="shrink-0">저장할 현장</span>
+            <select className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3 md:max-w-sm" value={fieldDayId} onChange={(event) => setFieldDayId(event.target.value)}>
               <option value="">현장을 선택하세요</option>
               {activeProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
             </select>
           </label>
         </div>
 
-        {(notice || error) && <p className={(error ? "text-orange" : "text-secondary") + " mt-4 rounded-lg bg-page p-3 text-sm"}>{error || notice}</p>}
-        {!clientReady && <p className="mt-4 rounded-lg bg-orange p-3 text-sm font-semibold text-ink">입력 기능을 연결하고 있습니다. 이 안내가 사라지지 않으면 Safari에서 페이지를 새로고침해 주세요.</p>}
+        {(notice || error) && <p className={(error ? "text-orange" : "text-secondary") + " mt-4 break-words rounded-lg bg-page p-3 text-sm"}>{error || notice}</p>}
+        {!clientReady && <p className="mt-4 break-words rounded-lg bg-orange p-3 text-sm font-semibold text-ink">입력 기능을 연결하고 있습니다. 이 안내가 사라지지 않으면 Safari에서 페이지를 새로고침해 주세요.</p>}
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-bold text-ink">
-            <Camera size={18} /> 사진 촬영
-            <input className="sr-only" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" capture="environment" disabled={!clientReady} onChange={(event) => void addFiles(event, "IMAGE")} />
-          </label>
-          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-mint px-4 text-sm font-bold text-ink">
-            <ImageIcon size={18} /> 앨범에서 선택
-            <input className="sr-only" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "IMAGE")} />
-          </label>
-          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-bold text-ink shadow-sm">
-            <Video size={18} /> 영상 선택
-            <input className="sr-only" type="file" accept="video/mp4,video/quicktime,video/webm" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "VIDEO")} />
-          </label>
-          <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-bold text-ink shadow-sm">
-            <Mic size={18} /> 음성 선택
-            <input className="sr-only" type="file" accept="audio/mp4,audio/x-m4a,audio/mpeg,audio/wav,audio/wave,audio/webm" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "AUDIO")} />
-          </label>
+        <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-bold text-ink"><Camera size={18} /> 사진 촬영<input className="sr-only" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" capture="environment" disabled={!clientReady} onChange={(event) => void addFiles(event, "IMAGE")} /></label>
+          <label className="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-mint px-4 text-sm font-bold text-ink"><ImageIcon size={18} /> 앨범에서 선택<input className="sr-only" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "IMAGE")} /></label>
+          <label className="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-bold text-ink shadow-sm"><Video size={18} /> 영상 선택<input className="sr-only" type="file" accept="video/mp4,video/quicktime,video/webm" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "VIDEO")} /></label>
+          <label className="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-surface px-4 text-sm font-bold text-ink shadow-sm"><Mic size={18} /> 음성 선택<input className="sr-only" type="file" accept="audio/mp4,audio/x-m4a,audio/mpeg,audio/wav,audio/wave,audio/webm" multiple disabled={!clientReady} onChange={(event) => void addFiles(event, "AUDIO")} /></label>
         </div>
 
-        {queue.length > 0 && <div className="mt-5 rounded-xl bg-page p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold">업로드 대기열 · 저장 완료 {completed}개 · 실패 {failed}개</p>
-            <button type="button" className="min-h-11 rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={processing || !queue.some((item) => item.state === "PENDING" || item.state === "FAILED")} onClick={() => void runUploads()}>
-              {processing ? "저장 중…" : "저장 시작"}
-            </button>
+        {queue.length > 0 && <div className="mt-5 min-w-0 max-w-full overflow-hidden rounded-xl bg-page p-4">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="break-words text-sm font-semibold">업로드 대기열 · 저장 완료 {completed}개 · 실패 {failed}개</p>
+            <button type="button" className="min-h-11 w-full rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto" disabled={processing || !queue.some((item) => item.state === "PENDING" || item.state === "FAILED")} onClick={() => void runUploads()}>{processing ? "저장 중…" : "저장 시작"}</button>
           </div>
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid min-w-0 gap-2">
             {queue.filter((item) => item.state !== "STORED").map((item) => {
               const Icon = typeIcon(item.type);
-              return <div key={item.clientUploadId} className="flex flex-wrap items-center gap-3 rounded-lg bg-surface p-3">
+              return <div key={item.clientUploadId} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-surface p-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-mint"><Icon size={18} /></span>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.file?.name || item.title}</p><p className="text-xs text-secondary">{item.file ? formatBytes(item.file.size) : "원본 확인 필요"} · {item.state === "UPLOADING" ? "업로드 중" : item.state === "FAILED" ? "실패" : "대기"}</p>{item.error && <p className="mt-1 text-xs text-orange">{item.error}</p>}</div>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.file?.name || item.title}</p><p className="text-xs text-secondary">{item.file ? formatBytes(item.file.size) : "원본 확인 필요"} · {item.state === "UPLOADING" ? "업로드 중" : item.state === "FAILED" ? "실패" : "대기"}</p>{item.error && <p className="mt-1 break-words text-xs text-orange">{item.error}</p>}</div>
                 {item.state === "FAILED" && <button type="button" className="min-h-11 rounded-lg border border-ui px-3 text-sm font-semibold" onClick={() => void runUploads([item])}><RotateCcw size={16} /></button>}
                 <button type="button" aria-label="대기 자료 폐기" className="min-h-11 min-w-11 rounded-lg border border-ui px-3 text-sm" onClick={() => void discard(item)}><Trash2 size={16} /></button>
               </div>;
@@ -245,21 +231,27 @@ export function InboxWorkspace({ projects }: { projects: FieldDaySummary[] }) {
         </div>}
       </section>
 
-      <section className="paper-card p-5 md:p-6">
-        <div className="flex flex-col gap-2 border-b border-ui pb-5"><p className="text-sm font-semibold text-secondary">텍스트 기록</p><h2 className="text-xl font-extrabold">텍스트 메모</h2></div>
-        <form className="mt-5 grid gap-3" onSubmit={(event) => void saveText(event)}>
-          <input className="min-h-11 rounded-lg border border-ui bg-surface px-3" placeholder="제목 (선택)" value={textTitle} onChange={(event) => setTextTitle(event.target.value)} />
-          <textarea className="min-h-32 rounded-lg border border-ui bg-surface p-3" placeholder="현장에서 발견한 내용을 기록하세요" value={textContent} onChange={(event) => setTextContent(event.target.value)} required />
-          <button type="submit" className="min-h-11 w-fit rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={!clientReady || textSaving}>{textSaving ? "저장 중…" : "메모 저장"}</button>
+      <section className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
+        <div className="flex min-w-0 flex-col gap-2 border-b border-ui pb-5"><p className="text-sm font-semibold text-secondary">텍스트 기록</p><h2 className="text-xl font-extrabold">텍스트 메모</h2></div>
+        <form className="mt-5 grid min-w-0 grid-cols-1 gap-3" onSubmit={(event) => void saveText(event)}>
+          <input className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3" placeholder="제목 (선택)" value={textTitle} onChange={(event) => setTextTitle(event.target.value)} />
+          <textarea className="min-h-32 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface p-3" placeholder="현장에서 발견한 내용을 기록하세요" value={textContent} onChange={(event) => setTextContent(event.target.value)} required />
+          <button type="submit" className="min-h-11 w-full rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:opacity-60 sm:w-fit" disabled={!clientReady || textSaving}>{textSaving ? "저장 중…" : "메모 저장"}</button>
         </form>
       </section>
 
-      <section className="paper-card p-5 md:p-6">
-        <div className="flex flex-col gap-3 border-b border-ui pb-5 md:flex-row md:items-end md:justify-between"><div><p className="text-sm font-semibold text-secondary">저장 완료 자료</p><h2 className="mt-1 text-xl font-extrabold">자료 목록</h2></div><div className="flex flex-wrap gap-2"><select className="min-h-11 rounded-lg border border-ui bg-surface px-3 text-sm" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">모든 현장</option>{activeProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select><select className="min-h-11 rounded-lg border border-ui bg-surface px-3 text-sm" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">모든 유형</option>{Object.entries(typeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div></div>
-        <div className="mt-5 grid gap-3">{materials.length ? materials.map((material) => { const Icon = typeIcon(material.type); return <button type="button" key={material.id} className="flex min-h-16 items-center gap-3 rounded-xl bg-page p-3 text-left hover:bg-mint" onClick={() => setDetail(material)}><span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-mint">{material.type === "IMAGE" ? <Image src={`/api/materials/${material.id}/file`} alt="" width={40} height={40} className="h-full w-full object-cover" /> : <Icon size={18} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{material.title}</span><span className="mt-1 block truncate text-xs text-secondary">{typeLabel[material.type] || material.type} · {material.fieldDay?.title || "현장 미지정"}</span></span><span className="text-xs text-secondary">{material.uploadStatus === "STORED" ? "저장 완료" : material.uploadStatus}</span></button>; }) : <p className="rounded-xl bg-page p-4 text-sm text-secondary">저장된 자료가 없습니다.</p>}</div>
+      <section className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
+        <div className="flex min-w-0 flex-col gap-3 border-b border-ui pb-5 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0"><p className="text-sm font-semibold text-secondary">저장 완료 자료</p><h2 className="mt-1 text-xl font-extrabold">자료 목록</h2></div>
+          <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto">
+            <select className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3 text-sm" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">모든 현장</option>{activeProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select>
+            <select className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3 text-sm" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="">모든 유형</option>{Object.entries(typeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          </div>
+        </div>
+        <div className="mt-5 grid min-w-0 gap-3">{materials.length ? materials.map((material) => { const Icon = typeIcon(material.type); return <button type="button" key={material.id} className="flex min-h-16 w-full min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-xl bg-page p-3 text-left hover:bg-mint" onClick={() => setDetail(material)}><span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-mint">{material.type === "IMAGE" ? <Image src={`/api/materials/${material.id}/file`} alt="" width={40} height={40} className="h-full w-full object-cover" /> : <Icon size={18} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{material.title}</span><span className="mt-1 block truncate text-xs text-secondary">{typeLabel[material.type] || material.type} · {material.fieldDay?.title || "현장 미지정"}</span></span><span className="shrink-0 text-xs text-secondary">{material.uploadStatus === "STORED" ? "저장 완료" : material.uploadStatus}</span></button>; }) : <p className="rounded-xl bg-page p-4 text-sm text-secondary">저장된 자료가 없습니다.</p>}</div>
       </section>
 
-      {detail && <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 md:items-center"><section className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl bg-surface p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-extrabold">자료 상세</h2><button type="button" className="min-h-11 rounded-lg border border-ui px-3 text-sm" onClick={() => setDetail(null)}>닫기</button></div><form className="mt-5 grid gap-3" onSubmit={(event) => void saveDetail(event)}><input className="min-h-11 rounded-lg border border-ui bg-surface px-3" value={detail.title} onChange={(event) => setDetail({ ...detail, title: event.target.value })} /><textarea className="min-h-40 rounded-lg border border-ui bg-surface p-3" value={detail.content || ""} onChange={(event) => setDetail({ ...detail, content: event.target.value })} /><div className="flex flex-wrap gap-2"><button type="submit" className="min-h-11 rounded-lg bg-ink px-4 text-sm font-semibold text-white">저장</button><button type="button" className="min-h-11 rounded-lg border border-ui px-4 text-sm font-semibold" onClick={() => void deleteMaterial(detail)}>삭제</button></div></form>{detail.type !== "TEXT" && <div className="mt-5">{detail.type === "IMAGE" ? <Image src={`/api/materials/${detail.id}/file`} alt={detail.title} width={720} height={480} className="h-auto w-full rounded-xl object-contain" /> : detail.type === "VIDEO" ? <video className="w-full rounded-xl" controls src={`/api/materials/${detail.id}/file`} /> : <audio className="w-full" controls src={`/api/materials/${detail.id}/file`} />}</div>}</section></div>}
+      {detail && <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 p-3 md:items-center md:p-4"><section className="max-h-[90vh] w-full min-w-0 max-w-xl overflow-auto rounded-2xl bg-surface p-4 md:p-5"><div className="flex min-w-0 items-center justify-between gap-3"><h2 className="min-w-0 text-xl font-extrabold">자료 상세</h2><button type="button" className="shrink-0 min-h-11 rounded-lg border border-ui px-3 text-sm" onClick={() => setDetail(null)}>닫기</button></div><form className="mt-5 grid min-w-0 grid-cols-1 gap-3" onSubmit={(event) => void saveDetail(event)}><input className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3" value={detail.title} onChange={(event) => setDetail({ ...detail, title: event.target.value })} /><textarea className="min-h-40 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface p-3" value={detail.content || ""} onChange={(event) => setDetail({ ...detail, content: event.target.value })} /><div className="grid grid-cols-2 gap-2"><button type="submit" className="min-h-11 rounded-lg bg-ink px-4 text-sm font-semibold text-white">저장</button><button type="button" className="min-h-11 rounded-lg border border-ui px-4 text-sm font-semibold" onClick={() => void deleteMaterial(detail)}>삭제</button></div></form>{detail.type !== "TEXT" && <div className="mt-5 min-w-0">{detail.type === "IMAGE" ? <Image src={`/api/materials/${detail.id}/file`} alt={detail.title} width={720} height={480} className="h-auto w-full max-w-full rounded-xl object-contain" /> : detail.type === "VIDEO" ? <video className="w-full max-w-full rounded-xl" controls src={`/api/materials/${detail.id}/file`} /> : <audio className="w-full max-w-full" controls src={`/api/materials/${detail.id}/file`} />}</div>}</section></div>}
     </div>
   );
 }
