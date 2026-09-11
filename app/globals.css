@@ -99,7 +99,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   max-width: 100%;
 }
 
-@media (max-width: 767px) {
+/* AppShell switches to the desktop sidebar only at lg (1024px), so all layouts below
+   that breakpoint should behave as mobile/tablet layouts too. */
+@media (max-width: 1023px) {
   .paper-card {
     width: 100%;
     overflow-x: hidden;
@@ -133,17 +135,28 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
     padding-left: 16px;
     padding-right: 16px;
   }
-  .inbox-page label:has(> select) {
-    align-items: stretch !important;
-  }
-  .inbox-page label:has(> select) > select {
+
+  /* Explicit fallback for Safari: this is the '저장할 현장' row in InboxWorkspace.
+     Do not rely only on :has() to stack this control. */
+  .inbox-page label.flex.min-h-11.items-center.gap-2.text-sm.font-semibold {
+    display: flex !important;
     width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .inbox-page label.flex.min-h-11.items-center.gap-2.text-sm.font-semibold > select {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
   }
   .inbox-page form > button[type="submit"] {
     width: 100%;
   }
   .inbox-page .paper-card .flex.flex-wrap > select {
     flex: 1 1 100%;
+    width: 100%;
   }
 }
 @media (min-width: 1024px) { .mobile-bottom-space { padding-bottom: 0; } }
