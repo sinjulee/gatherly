@@ -64,6 +64,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .collage-card.bg-surface { border: 1px solid #e2ded5; }
 .calendar-card { background: var(--color-black); color: var(--color-surface); border: 2px solid var(--color-black); border-radius: 16px 12px 18px 10px; }
 .mobile-bottom-space { padding-bottom: 88px; }
+
+/* The analysis page owns one shared project selector. Child workspaces still keep their
+   internal selector for standalone reuse, but it is hidden when rendered in the unified shell. */
+.analysis-shared-project-content label:has(> select) {
+  display: none !important;
+}
+
 @media (max-width: 767px) {
   .paper-card {
     width: 100%;
@@ -83,6 +90,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
     min-width: 0;
     max-width: 100%;
     margin-left: 0 !important;
+  }
+  .analysis-shared-project-content label:has(> select) {
+    display: none !important;
   }
   .paper-card input,
   .paper-card textarea,
