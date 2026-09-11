@@ -32,32 +32,34 @@ console.log(`▶ Gatherly ${mode} server: http://${HOST}:${PORT}`);
 console.log("   Guard: duplicate listeners on port 3001 are blocked before startup.");
 
 const child = spawn(process.execPath, args, { stdio: "inherit", env: process.env });
-const workerEnabled = process.env.GATHERLY_QUICK_ANALYSIS_WORKER !== "0";
-const workerScript = new URL("./gatherly-quick-analysis-worker.mjs", import.meta.url).pathname;
-const worker = workerEnabled
-  ? spawn(process.execPath, [workerScript], { stdio: "inherit", env: process.env })
-  : null;
+const quickEnabled = process.env.GATHERLY_QUICK_ANALYSIS_WORKER !== "0";
+const quickScript = new URL("./gatherly-quick-analysis-worker.mjs", import.meta.url).pathname;
+const quickWorker = quickEnabled ? spawn(process.execPath, [quickScript], { stdio: "inherit", env: process.env }) : null;
 
-if (worker) console.log("   Quick Analysis: Mac mini Codex worker started with the web server.\n");
-else console.log("   Quick Analysis: worker disabled by GATHERLY_QUICK_ANALYSIS_WORKER=0.\n");
+const reportEnabled = process.env.GATHERLY_FINAL_REPORT_WORKER !== "0";
+const reportScript = new URL("./gatherly-final-report-worker.mjs", import.meta.url).pathname;
+const reportWorker = reportEnabled ? spawn(process.execPath, [reportScript], { stdio: "inherit", env: process.env }) : null;
+
+console.log(quickWorker ? "   Quick Analysis: Codex worker started." : "   Quick Analysis: worker disabled.");
+console.log(reportWorker ? "   Final Report: Codex worker started.\n" : "   Final Report: worker disabled.\n");
 
 function stopChildren(signal) {
   if (!child.killed) child.kill(signal);
-  if (worker && !worker.killed) worker.kill(signal);
+  if (quickWorker && !quickWorker.killed) quickWorker.kill(signal);
+  if (reportWorker && !reportWorker.killed) reportWorker.kill(signal);
 }
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stopChildren(signal));
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => stopChildren(signal));
-}
-
-worker?.on("exit", (code, signal) => {
-  if (!child.killed && code !== 0) {
-    console.error(`[quick-analysis] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}). Restart Gatherly after checking the log.`);
-  }
+quickWorker?.on("exit", (code, signal) => {
+  if (!child.killed && code !== 0) console.error(`[quick-analysis] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
+});
+reportWorker?.on("exit", (code, signal) => {
+  if (!child.killed && code !== 0) console.error(`[final-report] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
 });
 
 child.on("exit", (code, signal) => {
-  if (worker && !worker.killed) worker.kill("SIGTERM");
+  if (quickWorker && !quickWorker.killed) quickWorker.kill("SIGTERM");
+  if (reportWorker && !reportWorker.killed) reportWorker.kill("SIGTERM");
   if (signal) process.kill(process.pid, signal);
   process.exit(code ?? 0);
 });
