@@ -29,8 +29,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .text-mint { color: var(--color-mint); }
 .border-ui { border-color: var(--color-border); }
 .paper-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; }
+.paper-card .grid > *, .paper-card .flex > * { min-width: 0; }
+.paper-card input, .paper-card textarea, .paper-card select { max-width: 100%; min-width: 0; }
+.paper-card input, .paper-card textarea { width: 100%; }
 .collage-card { position: relative; overflow: hidden; border: 0; border-radius: 16px 12px 18px 10px; box-shadow: 0 4px 14px rgba(17, 17, 17, 0.06); }
 .collage-card.bg-surface { border: 1px solid #e2ded5; }
 .calendar-card { background: var(--color-black); color: var(--color-surface); border: 2px solid var(--color-black); border-radius: 16px 12px 18px 10px; }
 .mobile-bottom-space { padding-bottom: 88px; }
+@media (max-width: 767px) {
+  .paper-card label:has(> select) { display: flex; width: 100%; flex-direction: column; gap: 8px; }
+  .paper-card label:has(> select) > select { width: 100%; margin-left: 0 !important; }
+}
 @media (min-width: 1024px) { .mobile-bottom-space { padding-bottom: 0; } }
