@@ -29,6 +29,9 @@ export async function POST(request: Request, context: RouteContext) {
     });
     if (!version) return NextResponse.json({ error: "전송할 보고서 버전을 찾을 수 없습니다." }, { status: 404 });
     if (version.status !== "FINAL") return NextResponse.json({ error: "FINAL 버전만 PlanFrame으로 전송할 수 있습니다." }, { status: 409 });
+    if (version.reportVersion === null) {
+      return NextResponse.json({ error: "PlanFrame으로 전송할 수 있는 보고서 버전 번호가 없습니다." }, { status: 409 });
+    }
     if (!version.structuredResult) return NextResponse.json({ error: "structured_result가 없는 버전은 전송할 수 없습니다." }, { status: 409 });
 
     const idempotencyKey = makePlanFrameIdempotencyKey(report.id, version.reportVersion);

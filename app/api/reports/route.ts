@@ -30,17 +30,17 @@ export async function POST(request: NextRequest) {
   if (parentReportId) {
     parent = await prisma.report.findUnique({ where: { id: parentReportId } });
     if (!parent || parent.fieldDayId !== fieldDayId || !parent.content) return NextResponse.json({ error: "수정할 기존 보고서를 찾을 수 없습니다." }, { status: 404 });
-    version = parent.version + 1;
+    version = parent.reportVersion + 1;
   } else {
-    const latest = await prisma.report.findFirst({ where: { fieldDayId }, orderBy: { version: "desc" }, select: { version: true } });
-    if (latest) version = latest.version + 1;
+    const latest = await prisma.report.findFirst({ where: { fieldDayId }, orderBy: { reportVersion: "desc" }, select: { reportVersion: true } });
+    if (latest) version = latest.reportVersion + 1;
   }
 
   const report = await prisma.report.create({
     data: {
       fieldDayId,
       parentReportId,
-      version,
+      reportVersion: version,
       title: title || `${fieldDay.title} 최종 보고서`,
       instruction: instruction || (parent ? "기존 보고서를 더 명확하고 완성도 높은 최종본으로 수정해 주세요." : "수집된 근거를 바탕으로 의사결정에 사용할 수 있는 완성도 높은 최종 보고서를 작성해 주세요."),
       status: "QUEUED",

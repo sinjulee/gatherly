@@ -11,7 +11,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       projectTitle: report.fieldDay.title,
       fieldDayId: report.fieldDay.id,
       title: report.title,
-      version: report.version,
+      version: report.reportVersion,
       content: report.content,
       googleDocId: report.googleDocId,
     });
