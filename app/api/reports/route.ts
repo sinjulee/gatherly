@@ -55,6 +55,20 @@ export async function PATCH(request: NextRequest) {
   const content = typeof body.content === "string" ? body.content : null;
   const title = typeof body.title === "string" ? body.title.trim() : undefined;
   if (!id || content === null) return NextResponse.json({ error: "보고서와 수정 내용을 확인해 주세요." }, { status: 400 });
-  const report = await prisma.report.update({ where: { id }, data: { content, ...(title ? { title } : {}), status: "COMPLETED", completedAt: new Date() } });
+
+  const existing = await prisma.report.findUnique({ where: { id }, select: { status: true } });
+  if (!existing) return NextResponse.json({ error: "보고서를 찾을 수 없습니다." }, { status: 404 });
+  if (existing.status === "FINAL") return NextResponse.json({ error: "FINAL 보고서는 직접 덮어쓸 수 없습니다. 새 수정 버전을 생성해 주세요." }, { status: 409 });
+
+  const report = await prisma.report.update({
+    where: { id },
+    data: {
+      content,
+      ...(title ? { title } : {}),
+      status: "COMPLETED",
+      structuredResult: null,
+      completedAt: new Date(),
+    },
+  });
   return NextResponse.json({ report });
 }
