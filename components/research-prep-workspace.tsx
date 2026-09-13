@@ -15,15 +15,6 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function loadWorkspace() {
-    const response = await fetch(`/api/research/drive-workspace?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store" });
-    const data = await response.json();
-    if (response.ok) {
-      setWorkspace(data.workspace || null);
-      if (data.warning) setNotice(data.warning);
-    }
-  }
-
   async function loadCandidates() {
     const response = await fetch(`/api/research/drive-workspace/candidates?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store" });
     const data = await response.json();
@@ -37,7 +28,34 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
   }
 
   useEffect(() => {
-    void Promise.all([loadWorkspace(), loadCandidates(), loadSources()]);
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const [workspaceResponse, candidatesResponse, sourcesResponse] = await Promise.all([
+          fetch(`/api/research/drive-workspace?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/research/drive-workspace/candidates?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/research/pre-research-sources?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
+        ]);
+        const [workspaceData, candidatesData, sourcesData] = await Promise.all([
+          workspaceResponse.json(),
+          candidatesResponse.json(),
+          sourcesResponse.json(),
+        ]);
+        if (controller.signal.aborted) return;
+
+        if (workspaceResponse.ok) {
+          setWorkspace(workspaceData.workspace || null);
+          if (workspaceData.warning) setNotice(workspaceData.warning);
+        }
+        if (candidatesResponse.ok) setCandidates(candidatesData.candidates || []);
+        if (sourcesResponse.ok) setSources(sourcesData.sources || []);
+      } catch {
+        if (!controller.signal.aborted) setNotice("사전조사 준비 정보를 불러오지 못했습니다.");
+      }
+    })();
+
+    return () => controller.abort();
   }, [project.id]);
 
   async function createWorkspace() {
