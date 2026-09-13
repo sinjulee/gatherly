@@ -4,13 +4,13 @@
 
 - 제품명: Gatherly
 - 문서명: Phase 2 Product Requirements Document
-- 버전: 1.3
+- 버전: 1.4
 - 기준일: 2026-09-14
 - 기준 제품: Gatherly 1차 개발 완료본
 - 기준 브랜치: `phase2/research-execution-system`
 - 제품 포지셔닝: **AI Field Research OS / Research Execution System**
 
-2차 개발은 Gatherly를 `자료를 모아 AI가 분석하고 보고서를 만드는 도구`에서 `조사를 계획하고, 현장에서 실행하며, 누락을 찾아 보완하고, 필요 시 외부 AI 연구도구가 사용할 수 있는 Research Package로 전달하여 조사를 완결하는 시스템`으로 확장한다.
+2차 개발은 Gatherly를 `자료를 모아 AI가 분석하고 보고서를 만드는 도구`에서 `조사를 계획하고, 현장에서 실행하며, 누락을 찾아 보완하고, 사전조사부터 현장 Evidence와 최종분석까지 하나의 Research Workspace로 연결하는 시스템`으로 확장한다.
 
 ---
 
@@ -27,6 +27,7 @@ Gatherly가 소유할 핵심은 다음 **조사 실행 상태와 Evidence Lineag
 → 무엇이 빠졌는가
 → 다음에 무엇을 해야 하는가
 → 현장을 떠나도 되는가
+→ 어떤 사전조사가 계획의 근거였는가
 → 어떤 원본 Evidence가 외부 연구도구에 전달되었는가
 → 어떤 근거로 최종 결론이 만들어졌는가
 ```
@@ -34,8 +35,11 @@ Gatherly가 소유할 핵심은 다음 **조사 실행 상태와 Evidence Lineag
 ### 2.1 핵심 제품 루프
 
 ```text
+PRE-RESEARCH
+NotebookLM/Gemini/ChatGPT 등에서 사전조사
+→ 현장 Drive Workspace의 00_사전조사
+
 PLAN
-사전조사
 → Research Plan
 → 방문대상/부스 계획
 → 부스별 체크리스트
@@ -50,7 +54,7 @@ FIELD
 
 SYNC
 → NotebookLM-ready Research Package 생성
-→ Google Drive 동기화
+→ 같은 현장 Drive Workspace에 동기화
 → 패키지 완전성/최신성 확인
 
 RESEARCH
@@ -61,7 +65,7 @@ REPORT
 → Evidence Lineage 유지
 ```
 
-### 2.2 저장 원칙: Local-first + Research Package Sync
+### 2.2 저장 원칙: Local-first + Shared Drive Workspace
 
 Gatherly의 원본 저장소는 계속 Mac mini다.
 
@@ -69,30 +73,32 @@ Gatherly의 원본 저장소는 계속 Mac mini다.
 - 사진/영상/음성 원본: Mac mini 로컬 파일 저장소
 - 현장 즉시 분석: Mac mini Codex CLI
 
-Google Drive는 원본 DB를 대체하지 않는다. Google Drive는 **NotebookLM 및 외부 연구도구에 전달하기 위한 동기화/교환 레이어**로 사용한다.
+Google Drive는 원본 DB를 대체하지 않는다. Google Drive는 **사전조사와 Gatherly 산출물이 만나는 공유 Research Workspace이자 NotebookLM 및 외부 연구도구에 전달하기 위한 동기화/교환 레이어**로 사용한다.
 
 이 구조를 선택하는 이유:
 
 - 현장 네트워크가 불안정해도 기록을 먼저 안전하게 저장할 수 있음
 - 기존 IndexedDB 업로드 대기/재시도 구조를 유지할 수 있음
 - 외부 서비스 장애가 현장 Capture를 막지 않음
-- 필요한 시점에만 정리된 조사 패키지를 외부 AI에 전달할 수 있음
+- NotebookLM에서 만든 사전조사/방문계획과 현장 Evidence를 한 프로젝트 공간에서 관리 가능
+- 필요한 시점에 정리된 조사 패키지를 외부 AI에 전달할 수 있음
 
 ---
 
 ## 3. 2차 개발 핵심 목표
 
 1. 현장 방문 전에 조사 목적과 방문대상을 구조화한다.
-2. 방문할 기업/부스/제품별로 사전 체크사항을 저장한다.
-3. 실제 방문 시 **해당 부스 체크리스트 화면 안에서 사진·영상·음성·텍스트 기록을 바로 추가**한다.
-4. Research Plan이나 Checkpoint가 없어도 **즉석 관찰 기록**을 자유롭게 추가한다.
-5. 기록된 Evidence를 Checkpoint에 연결하고 Target/부스별 Coverage를 계산한다.
-6. 미충족 체크사항을 Evidence Gap으로 표시하고 Next Action을 제안한다.
-7. 부스를 떠나기 전 Booth Closeout, 행사장을 떠나기 전 Field Closeout을 제공한다.
-8. 기존 Quick Analysis와 Final Report가 Research Plan, Coverage, Gap을 활용하도록 연결한다.
-9. Mac mini에 저장된 실제 Evidence를 **NotebookLM-ready Research Package**로 구성한다.
-10. Research Package를 Google Drive에 동기화하고 누락/실패/최신성을 사용자가 확인할 수 있게 한다.
-11. NotebookLM 자동 Source 등록이 공식적으로 지원되지 않는 경우에도, 사용자가 Drive 자료를 바로 선택해 연구를 이어갈 수 있는 Handoff를 제공한다.
+2. NotebookLM 등에서 만든 사전조사/방문계획을 현장 Drive Workspace의 `00_사전조사`에 보관하고 Research Plan 입력으로 활용한다.
+3. 방문할 기업/부스/제품별로 사전 체크사항을 저장한다.
+4. 실제 방문 시 **해당 부스 체크리스트 화면 안에서 사진·영상·음성·텍스트 기록을 바로 추가**한다.
+5. Research Plan이나 Checkpoint가 없어도 **즉석 관찰 기록**을 자유롭게 추가한다.
+6. 기록된 Evidence를 Checkpoint에 연결하고 Target/부스별 Coverage를 계산한다.
+7. 미충족 체크사항을 Evidence Gap으로 표시하고 Next Action을 제안한다.
+8. 부스를 떠나기 전 Booth Closeout, 행사장을 떠나기 전 Field Closeout을 제공한다.
+9. 기존 Quick Analysis와 Final Report가 Research Plan, Coverage, Gap을 활용하도록 연결한다.
+10. Mac mini에 저장된 실제 Evidence를 **NotebookLM-ready Research Package**로 구성한다.
+11. Research Package를 같은 현장 Drive Workspace에 동기화하고 누락/실패/최신성을 사용자가 확인할 수 있게 한다.
+12. NotebookLM 자동 Source 등록이 공식적으로 지원되지 않는 경우에도, 사용자가 Drive 자료를 바로 선택해 연구를 이어갈 수 있는 Handoff를 제공한다.
 
 ---
 
@@ -101,9 +107,9 @@ Google Drive는 원본 DB를 대체하지 않는다. Google Drive는 **NotebookL
 ### 4.1 방문 전: 조사 준비
 
 ```text
-현장 생성
+현장 생성 또는 Drive 현장 Workspace 연결
+→ 00_사전조사 자료 확인/선택
 → 조사 목적 입력
-→ 사전조사 자료 입력/연결
 → AI Research Plan 초안 생성
 → 방문할 Target/부스 확정
 → Target별 질문·체크사항·필요 Evidence 설정
@@ -111,9 +117,9 @@ Google Drive는 원본 DB를 대체하지 않는다. Google Drive는 **NotebookL
 → 방문 준비 완료
 ```
 
-사전조사는 Gatherly 내부에서만 수행할 필요가 없다. NotebookLM, Gemini, ChatGPT, 웹검색, 내부 문서 등에서 만든 결과를 붙여넣거나 연결할 수 있다.
+사전조사는 Gatherly 내부에서만 수행할 필요가 없다. NotebookLM, Gemini, ChatGPT, 웹검색, 내부 문서 등에서 만든 결과를 `00_사전조사`에 개별 문서로 보관하거나 직접 입력할 수 있다.
 
-Gatherly는 이를 다음 실행 구조로 바꾼다.
+Gatherly는 사전조사 자료를 임의로 합치거나 원본을 수정하지 않고, 출처를 유지한 채 다음 실행 구조로 바꾼다.
 
 ```text
 Objective
@@ -204,15 +210,15 @@ Research Plan 또는 Checkpoint는 Capture의 필수조건이 아니다.
 → 포함할 Evidence 확인
 → Research Package 생성
 → 이미지/텍스트/음성/영상 처리 상태 확인
-→ Google Drive 동기화
+→ 현장 Drive Workspace 동기화
 → 누락/실패 재시도
 → Source-ready 상태 확인
-→ [NotebookLM 열기]
+→ [Drive 열기] / [NotebookLM 열기]
 ```
 
 보고서 요청 시 기존 Research Package가 최신이 아니면 `새 Evidence가 있음` 또는 `패키지 갱신 필요`를 표시한다.
 
-NotebookLM Notebook에 Source를 자동 등록하는 기능은 공식 지원 수단이 확인되는 범위에서만 구현한다. 2차 MVP의 완료 기준은 **Google Drive까지 Source-ready Package를 안정적으로 준비하고 Handoff하는 것**이다.
+NotebookLM Notebook에 Source를 자동 등록하는 기능은 공식 지원 수단이 확인되는 범위에서만 구현한다. 2차 MVP의 완료 기준은 **현장 Drive Workspace까지 Source-ready Package를 안정적으로 준비하고 Handoff하는 것**이다.
 
 ### 4.7 분석/보고서
 
@@ -226,6 +232,7 @@ Research Plan
 + Quick Analysis
 + Analysis Brief
 + Research Package 상태
++ 사전조사 Source Lineage
 → Final Report 또는 NotebookLM Deep Research
 ```
 
@@ -300,6 +307,12 @@ Gap을 현장에서 바로 수행할 행동으로 변환한 항목.
 ### Booth Closeout / Field Closeout
 부스 또는 전체 현장의 종료 상태를 보존하는 immutable snapshot.
 
+### DriveWorkspace
+FieldDay와 Google Drive 현장 폴더의 연결. 사용자에게는 현장명 폴더만 보이고 내부적으로 `driveProjectFolderId`를 저장하여 연결을 유지한다.
+
+### PreResearchSource
+`00_사전조사`에 존재하는 NotebookLM/사용자 작성 조사자료의 참조 메타데이터. 원본을 덮어쓰지 않고 Research Plan의 출처로 연결할 수 있다.
+
 ### ResearchPackage
 특정 시점의 현장 Evidence와 Research 상태를 외부 AI가 사용할 수 있도록 구성한 **버전된 전달 패키지**.
 
@@ -322,41 +335,61 @@ Gap을 현장에서 바로 수행할 행동으로 변환한 항목.
 
 ---
 
-## 6. NotebookLM-ready Research Package 정책
+## 6. Shared Drive Workspace / Research Package 정책
 
 ### 6.1 Google Drive 구조
 
-기존 Gatherly Drive 구조를 확장한다.
+2차 신규 구조에서는 현장별 최상위 폴더를 **사람이 읽을 수 있는 현장명만으로 생성/연결**한다. `{fieldDayId8}`를 폴더명에 붙이지 않는다.
 
 ```text
 Gatherly/
 └── Projects/
-    └── {현장명} ({fieldDayId8})/
-        ├── 01_Source/
-        │   └── v{packageVersion}/
-        │       ├── Evidence/
-        │       │   ├── Images/
-        │       │   ├── Audio/
-        │       │   ├── Video/
-        │       │   └── Other/
-        │       ├── Derived/
-        │       │   ├── Transcripts/
-        │       │   └── Frames/
-        │       ├── 01 Project Overview
-        │       ├── 02 Field Notes
-        │       ├── 03 Photo Evidence
-        │       ├── 04 Media Index
-        │       ├── 05 Source Index
-        │       ├── 06 Research Plan
-        │       ├── 07 Coverage and Gaps
-        │       └── 08 Closeout
-        ├── 02_Analysis_Brief/
-        └── 04_Final_Report/
+    └── {현장명}/
+        ├── 00_사전조사/
+        │   ├── Notebook_시장동향
+        │   ├── Notebook_참가기업조사
+        │   ├── Notebook_제품트렌드
+        │   ├── 방문계획
+        │   └── 조사체크리스트
+        ├── 01_현장자료/
+        │   ├── Evidence/
+        │   │   ├── Images/
+        │   │   ├── Audio/
+        │   │   ├── Video/
+        │   │   └── Other/
+        │   ├── Derived/
+        │   │   ├── Transcripts/
+        │   │   └── Frames/
+        │   ├── Field Notes
+        │   └── Source Index
+        ├── 02_조사계획/
+        │   ├── Research Plan
+        │   ├── Booth Checklist
+        │   └── Research Questions
+        ├── 03_분석자료/
+        │   ├── Coverage and Gaps
+        │   ├── Closeout
+        │   └── Analysis Brief
+        └── 04_최종보고서/
 ```
 
-Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응할 수 있게 유지한다.
+### 6.2 Drive 연결 원칙
 
-### 6.2 자료 유형별 처리
+- FieldDay와 Drive 폴더는 **폴더명 문자열이 아니라 Google Drive folderId**로 연결한다.
+- 권장 필드: `FieldDay.driveProjectFolderId`.
+- 사용자가 Drive에서 현장 폴더명을 변경해도 folderId가 같으면 연결은 유지되어야 한다.
+- 동일한 이름의 폴더가 여러 개면 이름으로 임의 연결하지 않는다. 사용자가 기존 폴더를 명시적으로 선택하거나 새 폴더를 만든다.
+- 기존 1차 `{현장명} ({fieldDayId8})` 폴더는 자동 삭제하지 않는다. 2차에서는 기존 폴더를 새 FieldDay Workspace로 재연결하거나 안전하게 마이그레이션할 수 있어야 한다.
+
+### 6.3 사전조사 자료 정책
+
+- `00_사전조사`는 NotebookLM, Gemini, ChatGPT, 사용자 문서 등 외부 사전조사/방문계획 자료를 두는 영역이다.
+- Gatherly는 기본적으로 이 영역의 원본 파일을 수정하지 않는다.
+- 개별 조사자료를 하나로 강제 병합하지 않는다.
+- Research Plan 생성 시 어떤 사전조사 Source가 근거였는지 Lineage를 남길 수 있어야 한다.
+- `00_사전조사`의 문서가 추가/변경되면 사용자가 다시 스캔하거나 최신 상태를 갱신할 수 있어야 한다.
+
+### 6.4 자료 유형별 처리
 
 **IMAGE**
 - 실제 이미지 파일을 Drive에 동기화한다.
@@ -377,7 +410,7 @@ Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응�
 - NotebookLM 활용성을 위해 향후 핵심 프레임/전사본 파생을 지원한다.
 - 파생본 생성 실패가 원본 Evidence를 손상시키면 안 된다.
 
-### 6.3 Source-ready 상태
+### 6.5 Source-ready 상태
 
 각 패키지 항목은 최소 다음 상태 중 하나를 가진다.
 
@@ -399,7 +432,7 @@ Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응�
 - FAILED
 - STALE
 
-### 6.4 증분 동기화와 버전
+### 6.6 증분 동기화와 버전
 
 - SHA-256이 동일한 파일은 재업로드하지 않는다.
 - 새 Evidence나 수정된 Source 문서가 있으면 현재 Package를 `STALE`로 표시한다.
@@ -407,7 +440,7 @@ Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응�
 - 로컬 Material 삭제가 과거 Research Package의 Drive 자료를 자동 삭제하지 않는다.
 - 새 분석을 위한 동기화는 새 packageVersion 생성 또는 명시적 갱신 정책을 사용한다.
 
-### 6.5 개인정보/로컬 경로
+### 6.7 개인정보/로컬 경로
 
 - Google Drive로 내보내는 문서에 Mac mini의 절대 로컬 경로를 노출하지 않는다.
 - 외부 전달용 식별자는 Evidence ID와 안전한 파일명으로 제한한다.
@@ -420,6 +453,8 @@ Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응�
 ### 7.1 조사 준비
 
 - 현장 선택
+- Drive 현장 Workspace 연결/생성
+- `00_사전조사` 자료 확인/선택
 - 조사 목적
 - 사전조사 입력
 - AI Plan 생성
@@ -473,9 +508,11 @@ Google Drive 구조는 실제 NotebookLM 지원 소스 유형 변화에 대응�
 사용자는 최소 다음을 확인할 수 있어야 한다.
 
 ```text
+현장 Workspace: 2026 푸드위크
 Research Package v3
 상태: SOURCE_READY
 
+사전조사 Source         5
 전체 Evidence          47
 패키지 포함            45
 Drive 동기화           45 / 45
@@ -487,6 +524,7 @@ Drive 동기화           45 / 45
 마지막 동기화           2026-09-14 14:30
 새 Evidence 이후 변경  없음
 
+[사전조사 새로고침]
 [패키지 다시 만들기]
 [실패 항목 재시도]
 [Drive 열기]
@@ -502,6 +540,7 @@ Drive 동기화           45 / 45
 - 미확인 P1/P2
 - Closeout 여부
 - Research Package 최신성
+- 사전조사 Source 상태
 
 을 보여준다. 미충족 항목이 있어도 보고서 생성을 막지는 않되 한계로 명시한다.
 
@@ -511,7 +550,7 @@ Drive 동기화           45 / 45
 
 ### Gatherly + Codex
 
-- 사전조사 텍스트를 Research Plan 초안으로 구조화
+- 사전조사 자료를 Research Plan 초안으로 구조화
 - Checkpoint/Required Evidence 추천
 - Evidence Mapping 추천
 - Gap 설명
@@ -523,7 +562,7 @@ Drive 동기화           45 / 45
 
 ### 외부 AI
 
-NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭게 사용할 수 있다. Gatherly는 그 결과를 실행 가능한 Plan으로 변환하고 현장 수행 상태를 관리하며, **현장 원본 Evidence를 외부 AI가 사용할 수 있는 Research Package로 전달한다.**
+NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭게 사용할 수 있다. Gatherly는 그 결과를 실행 가능한 Plan으로 변환하고 현장 수행 상태를 관리하며, **현장 원본 Evidence를 같은 Research Workspace를 통해 외부 AI가 사용할 수 있는 Research Package로 전달한다.**
 
 ---
 
@@ -533,6 +572,8 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 - 원본 Material은 Plan/Mapping/Package 처리로 수정하지 않는다.
 - 현재 Checkpoint에서 생성된 Material은 Target/Checkpoint Context를 함께 저장한다.
 - 계획 없는 Material도 정상 Evidence로 저장한다.
+- `00_사전조사` 원본은 Gatherly가 임의 수정하지 않는다.
+- FieldDay와 Drive Workspace의 영구 연결은 folderId를 기준으로 한다.
 - AI 매핑은 rationale/confidence를 저장하고 수정 가능해야 한다.
 - Coverage는 AI 없이 DB 상태만으로 재현 가능해야 한다.
 - AI Worker 장애 시에도 수동 체크/기록/Mapping/Closeout이 가능해야 한다.
@@ -562,7 +603,10 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 - Next Action
 - Booth Closeout
 - Field Closeout
-- Pre-Research 텍스트 입력
+- Drive 현장 Workspace 연결/생성
+- `driveProjectFolderId` 기반 연결 유지
+- `00_사전조사` 탐색/선택 및 Research Plan 입력 활용
+- Pre-Research 텍스트 직접 입력
 - AI Research Plan Draft
 - Quick Analysis/Final Report Context 연계
 - **ResearchPackage / ResearchPackageItem**
@@ -570,6 +614,7 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 - **패키지 manifest 및 Source Docs 생성**
 - **증분 동기화 / 실패 재시도 / STALE 감지**
 - **NotebookLM 준비 상태 UI 및 Drive/NotebookLM Handoff**
+- **기존 1차 ID 포함 Drive 폴더의 안전한 재연결/마이그레이션 경로**
 
 후순위:
 
@@ -587,16 +632,18 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 
 ```text
 2A. Research Plan / Target / Booth / Checkpoint Core
-2B. 조사 준비 UI
-2C. Booth Detail + In-context Capture
-2D. 자유 관찰 Capture + Evidence Mapping + Coverage
-2E. Gap + Next Action
-2F. Booth Closeout + Field Closeout
-2G. Research Package Builder
-2H. Evidence Binary / Source Docs Google Drive Sync
-2I. NotebookLM 준비 상태 + Handoff
-2J. Quick Analysis / Final Report 연계
-2K. iPhone 현장 및 NotebookLM 연계 회귀 테스트
+2B. Shared Drive Workspace 연결 + 00_사전조사 참조
+2C. 조사 준비 UI
+2D. Booth Detail + In-context Capture
+2E. 자유 관찰 Capture + Evidence Mapping + Coverage
+2F. Gap + Next Action
+2G. Booth Closeout + Field Closeout
+2H. Research Package Builder
+2I. Evidence Binary / Source Docs Google Drive Sync
+2J. NotebookLM 준비 상태 + Handoff
+2K. Quick Analysis / Final Report 연계
+2L. 기존 Drive 구조 마이그레이션/재연결 검증
+2M. iPhone 현장 및 NotebookLM 연계 회귀 테스트
 ```
 
 ---
@@ -606,9 +653,9 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 2차 개발은 실제 iPhone에서 다음 흐름이 끊기지 않고 완료될 때 종료한다.
 
 ```text
-현장 생성
-→ 사전조사 입력
-→ Research Plan 생성
+현장 생성 또는 Drive 현장 Workspace 연결
+→ 00_사전조사에 NotebookLM/사용자 조사자료 보관
+→ Gatherly가 사전조사를 읽어 Research Plan 생성
 → 방문 부스와 체크사항 확정
 → 부스 선택
 → 체크리스트를 보면서 사진/메모/음성/영상 기록
@@ -618,7 +665,7 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 → 부스 종료
 → 전체 현장 Closeout
 → Research Package 생성
-→ 실제 Evidence + 조사상태 Google Drive 동기화
+→ 같은 현장 Drive Workspace에 실제 Evidence + 조사상태 동기화
 → SOURCE_READY 확인
 → NotebookLM Handoff
 → 심층 분석 또는 Final Report
@@ -626,6 +673,6 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 
 핵심 제품 메시지:
 
-> **Gatherly는 현장 방문 전에 무엇을 확인할지 계획하고, 현장에서는 체크리스트와 자유 관찰을 함께 기록하며, 무엇이 빠졌는지 실시간으로 찾아 다음 행동을 안내하고, 현장 Evidence 전체를 외부 AI가 바로 연구할 수 있는 패키지로 연결하는 AI Field Research OS다.**
+> **Gatherly는 사전조사에서 무엇을 확인할지 계획하고, 현장에서는 체크리스트와 자유 관찰을 함께 기록하며, 무엇이 빠졌는지 실시간으로 찾아 다음 행동을 안내하고, 사전조사부터 현장 Evidence와 최종분석까지 하나의 Research Workspace로 이어주는 AI Field Research OS다.**
 
 > **Plan the fieldwork. Capture the evidence. Find the gaps. Continue the research.**
