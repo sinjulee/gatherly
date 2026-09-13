@@ -8,26 +8,32 @@ datasource db {
 }
 
 model FieldDay {
-  id                String             @id @default(uuid())
-  title             String
-  location          String?
-  fieldDate         DateTime           @default(now()) @map("date")
-  description       String?            @map("notes")
-  status            String             @default("ACTIVE")
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  deletedAt         DateTime?
-  materials         Material[]
-  reports           Report[]
-  sourceBundles     SourceBundle[]
-  analysisBriefs    AnalysisBrief[]
-  notebookLink      NotebookLink?
-  syncJobs          SyncJob[]
-  researchResults   ResearchResult[]
-  quickAnalysisJobs QuickAnalysisJob[]
-  researchPlans     ResearchPlan[]
+  id                          String              @id @default(uuid())
+  title                       String
+  location                    String?
+  fieldDate                   DateTime            @default(now()) @map("date")
+  description                 String?             @map("notes")
+  status                      String              @default("ACTIVE")
+  driveProjectFolderId        String?
+  driveProjectFolderUrl       String?
+  driveWorkspaceLinkedAt      DateTime?
+  driveWorkspaceLastScannedAt DateTime?
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+  deletedAt                   DateTime?
+  materials                   Material[]
+  reports                     Report[]
+  sourceBundles               SourceBundle[]
+  analysisBriefs              AnalysisBrief[]
+  notebookLink                NotebookLink?
+  syncJobs                    SyncJob[]
+  researchResults             ResearchResult[]
+  quickAnalysisJobs           QuickAnalysisJob[]
+  researchPlans               ResearchPlan[]
+  preResearchSources          PreResearchSource[]
 
   @@index([status, deletedAt])
+  @@index([driveProjectFolderId])
 }
 
 model Material {
@@ -393,23 +399,23 @@ model ResearchQuestion {
 }
 
 model ResearchCheckpoint {
-  id                 String             @id @default(cuid())
-  researchPlanId     String
-  targetId           String?
-  researchQuestionId String?
-  title              String
-  description        String?
-  priority           String             @default("P2")
-  status             String             @default("NOT_STARTED")
+  id                  String             @id @default(cuid())
+  researchPlanId      String
+  targetId            String?
+  researchQuestionId  String?
+  title               String
+  description         String?
+  priority            String             @default("P2")
+  status              String             @default("NOT_STARTED")
   evidenceRequirement String?
-  completionNote     String?
-  sortOrder          Int                @default(0)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  researchPlan       ResearchPlan       @relation(fields: [researchPlanId], references: [id], onDelete: Cascade)
-  target             ResearchTarget?    @relation(fields: [targetId], references: [id], onDelete: SetNull)
-  researchQuestion   ResearchQuestion?  @relation(fields: [researchQuestionId], references: [id], onDelete: SetNull)
-  requiredEvidence   RequiredEvidence[]
+  completionNote      String?
+  sortOrder           Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  researchPlan        ResearchPlan       @relation(fields: [researchPlanId], references: [id], onDelete: Cascade)
+  target              ResearchTarget?    @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  researchQuestion    ResearchQuestion?  @relation(fields: [researchQuestionId], references: [id], onDelete: SetNull)
+  requiredEvidence    RequiredEvidence[]
 
   @@index([researchPlanId, sortOrder])
   @@index([targetId])
@@ -418,16 +424,37 @@ model ResearchCheckpoint {
 }
 
 model RequiredEvidence {
-  id             String             @id @default(cuid())
-  checkpointId   String
-  evidenceType   String             @default("ANY")
-  minimumCount   Int                @default(1)
-  requireText    Boolean            @default(false)
-  requireFile    Boolean            @default(false)
-  description    String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  checkpoint     ResearchCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  id           String             @id @default(cuid())
+  checkpointId String
+  evidenceType String             @default("ANY")
+  minimumCount Int                @default(1)
+  requireText  Boolean            @default(false)
+  requireFile  Boolean            @default(false)
+  description  String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  checkpoint   ResearchCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
 
   @@index([checkpointId])
+}
+
+model PreResearchSource {
+  id              String   @id @default(cuid())
+  fieldDayId      String
+  driveFileId     String
+  name            String
+  mimeType        String?
+  webViewLink     String?
+  modifiedTime    DateTime?
+  sourceType      String   @default("OTHER")
+  selectedForPlan Boolean  @default(false)
+  contentHash     String?
+  lastScannedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  fieldDay        FieldDay @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldDayId, driveFileId])
+  @@index([fieldDayId, selectedForPlan])
+  @@index([fieldDayId, modifiedTime])
 }
