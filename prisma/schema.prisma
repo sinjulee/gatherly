@@ -25,6 +25,7 @@ model FieldDay {
   syncJobs          SyncJob[]
   researchResults   ResearchResult[]
   quickAnalysisJobs QuickAnalysisJob[]
+  researchPlans     ResearchPlan[]
 
   @@index([status, deletedAt])
 }
@@ -250,7 +251,6 @@ model ResearchResult {
 model ReportVersion {
   id String @id @default(cuid())
 
-  // Gatherly final report version contract
   reportId                String?
   reportVersion           Int?    @map("report_version")
   versionType             String  @default("DRAFT")
@@ -259,7 +259,6 @@ model ReportVersion {
   structuredSchemaVersion String  @default("gatherly.report.v1") @map("structured_schema_version")
   createdBy               String  @default("SYSTEM")
 
-  // NotebookLM research-result version compatibility
   researchResultId  String?
   versionNo         Int?
   title             String?
@@ -316,4 +315,119 @@ model ReportIntegrationDelivery {
 
   @@index([reportId, destination, status])
   @@index([reportVersionId, destination])
+}
+
+model ResearchPlan {
+  id              String               @id @default(cuid())
+  fieldDayId      String
+  parentPlanId    String?
+  version         Int                  @default(1)
+  status          String               @default("DRAFT")
+  isActive        Boolean              @default(false)
+  title           String
+  objective       String
+  background      String?
+  visitPurpose    String?
+  decisionContext String?
+  targetScope     String?
+  successCriteria String?
+  preResearchText String?
+  generatedByAi   Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  activatedAt     DateTime?
+  closedAt        DateTime?
+  fieldDay        FieldDay             @relation(fields: [fieldDayId], references: [id], onDelete: Cascade)
+  parentPlan      ResearchPlan?        @relation("ResearchPlanVersions", fields: [parentPlanId], references: [id], onDelete: SetNull)
+  childPlans      ResearchPlan[]       @relation("ResearchPlanVersions")
+  targets         ResearchTarget[]
+  questions       ResearchQuestion[]
+  checkpoints     ResearchCheckpoint[]
+
+  @@unique([fieldDayId, version])
+  @@index([fieldDayId, status])
+  @@index([fieldDayId, isActive])
+  @@index([parentPlanId])
+}
+
+model ResearchTarget {
+  id             String               @id @default(cuid())
+  researchPlanId String
+  name           String
+  type           String               @default("OTHER")
+  boothNo        String?
+  locationHint   String?
+  description    String?
+  priority       String               @default("P2")
+  visitOrder     Int                  @default(0)
+  visitStatus    String               @default("PLANNED")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  researchPlan   ResearchPlan         @relation(fields: [researchPlanId], references: [id], onDelete: Cascade)
+  questions      ResearchQuestion[]
+  checkpoints    ResearchCheckpoint[]
+
+  @@index([researchPlanId, visitOrder])
+  @@index([researchPlanId, visitStatus])
+}
+
+model ResearchQuestion {
+  id             String               @id @default(cuid())
+  researchPlanId String
+  targetId       String?
+  question       String
+  rationale      String?
+  priority       String               @default("P2")
+  sortOrder      Int                  @default(0)
+  status         String               @default("OPEN")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  researchPlan   ResearchPlan         @relation(fields: [researchPlanId], references: [id], onDelete: Cascade)
+  target         ResearchTarget?      @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  checkpoints    ResearchCheckpoint[]
+
+  @@index([researchPlanId, sortOrder])
+  @@index([targetId])
+}
+
+model ResearchCheckpoint {
+  id                 String             @id @default(cuid())
+  researchPlanId     String
+  targetId           String?
+  researchQuestionId String?
+  title              String
+  description        String?
+  priority           String             @default("P2")
+  status             String             @default("NOT_STARTED")
+  evidenceRequirement String?
+  completionNote     String?
+  sortOrder          Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  researchPlan       ResearchPlan       @relation(fields: [researchPlanId], references: [id], onDelete: Cascade)
+  target             ResearchTarget?    @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  researchQuestion   ResearchQuestion?  @relation(fields: [researchQuestionId], references: [id], onDelete: SetNull)
+  requiredEvidence   RequiredEvidence[]
+
+  @@index([researchPlanId, sortOrder])
+  @@index([targetId])
+  @@index([researchQuestionId])
+  @@index([researchPlanId, priority, status])
+}
+
+model RequiredEvidence {
+  id             String             @id @default(cuid())
+  checkpointId   String
+  evidenceType   String             @default("ANY")
+  minimumCount   Int                @default(1)
+  requireText    Boolean            @default(false)
+  requireFile    Boolean            @default(false)
+  description    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  checkpoint     ResearchCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+
+  @@index([checkpointId])
 }
