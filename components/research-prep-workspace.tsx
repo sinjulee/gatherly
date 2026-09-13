@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, RefreshCw } from "lucide-react";
+import { Check, ExternalLink, FolderOpen, RefreshCw, Save } from "lucide-react";
 
 type Project = { id: string; title: string };
 type Workspace = { id: string; name: string; webViewLink?: string };
@@ -12,6 +12,8 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
+  const [notebookUrl, setNotebookUrl] = useState("");
+  const [savedNotebookUrl, setSavedNotebookUrl] = useState("");
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -32,15 +34,17 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
 
     void (async () => {
       try {
-        const [workspaceResponse, candidatesResponse, sourcesResponse] = await Promise.all([
+        const [workspaceResponse, candidatesResponse, sourcesResponse, notebookResponse] = await Promise.all([
           fetch(`/api/research/drive-workspace?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
           fetch(`/api/research/drive-workspace/candidates?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
           fetch(`/api/research/pre-research-sources?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/research/notebook-link?fieldDayId=${encodeURIComponent(project.id)}`, { cache: "no-store", signal: controller.signal }),
         ]);
-        const [workspaceData, candidatesData, sourcesData] = await Promise.all([
+        const [workspaceData, candidatesData, sourcesData, notebookData] = await Promise.all([
           workspaceResponse.json(),
           candidatesResponse.json(),
           sourcesResponse.json(),
+          notebookResponse.json(),
         ]);
         if (controller.signal.aborted) return;
 
@@ -50,6 +54,11 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
         }
         if (candidatesResponse.ok) setCandidates(candidatesData.candidates || []);
         if (sourcesResponse.ok) setSources(sourcesData.sources || []);
+        if (notebookResponse.ok) {
+          const value = notebookData.link?.notebookUrl || "";
+          setNotebookUrl(value);
+          setSavedNotebookUrl(value);
+        }
       } catch {
         if (!controller.signal.aborted) setNotice("사전조사 준비 정보를 불러오지 못했습니다.");
       }
@@ -121,12 +130,31 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
     setSources((current) => current.map((item) => item.id === source.id ? data.source : item));
   }
 
+  async function saveNotebookLink() {
+    if (!notebookUrl.trim() || busy === "notebook") return;
+    setBusy("notebook"); setNotice("");
+    try {
+      const response = await fetch("/api/research/notebook-link", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldDayId: project.id, notebookUrl: notebookUrl.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "NotebookLM 연결정보를 저장하지 못했습니다.");
+      setNotebookUrl(data.link.notebookUrl);
+      setSavedNotebookUrl(data.link.notebookUrl);
+      setNotice("NotebookLM 연결 주소를 저장했습니다.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "NotebookLM 연결정보를 저장하지 못했습니다.");
+    } finally { setBusy(""); }
+  }
+
   return <section className="paper-card mt-5 p-5 md:p-6">
     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div>
         <p className="text-xs font-extrabold text-orange">PRE-RESEARCH · DRIVE WORKSPACE</p>
         <h3 className="mt-1 text-xl font-extrabold">사전조사 · 방문 준비</h3>
-        <p className="mt-1 text-sm text-secondary">NotebookLM 사전조사와 Gatherly 현장조사를 같은 프로젝트 폴더로 연결합니다.</p>
+        <p className="mt-1 text-sm text-secondary">NotebookLM 사전조사와 Gatherly 현장조사를 같은 프로젝트 Workspace로 연결합니다.</p>
       </div>
       {workspace?.webViewLink && <a href={workspace.webViewLink} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-2 rounded-xl bg-surface px-3 text-xs font-extrabold">Drive 열기 <ExternalLink size={14} /></a>}
     </div>
@@ -151,6 +179,16 @@ export function ResearchPrepWorkspace({ project }: { project: Project }) {
     <div className="mt-5 border-t border-ui pt-4">
       <div className="flex items-center justify-between"><div><h4 className="font-extrabold">00_사전조사 자료</h4><p className="mt-1 text-xs text-secondary">Research Plan 생성에 사용할 자료만 선택합니다. 원본 파일은 수정하지 않습니다.</p></div><span className="rounded-full bg-surface px-3 py-1 text-xs font-bold">선택 {sources.filter((source) => source.selectedForPlan).length} / {sources.length}</span></div>
       <div className="mt-3 grid gap-2">{sources.map((source) => <label key={source.id} className="flex cursor-pointer items-start gap-3 rounded-xl bg-page p-3"><input type="checkbox" className="mt-1 h-5 w-5" checked={source.selectedForPlan} onChange={() => void toggleSource(source)} /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><strong className="truncate text-sm">{source.name}</strong>{source.webViewLink && <a href={source.webViewLink} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="text-secondary"><ExternalLink size={14} /></a>}</div><p className="mt-1 text-xs text-secondary">{source.sourceType} · {source.mimeType || "파일"}</p></div></label>)}{workspace && !sources.length && <p className="py-5 text-center text-sm text-secondary">아직 스캔된 사전조사 자료가 없습니다. `00_사전조사 새로고침`을 눌러 주세요.</p>}</div>
+    </div>
+
+    <div className="mt-5 border-t border-ui pt-4">
+      <div className="flex items-center gap-2"><h4 className="font-extrabold">NotebookLM Handoff</h4>{savedNotebookUrl && <span className="flex items-center gap-1 rounded-full bg-mint px-2 py-1 text-[11px] font-extrabold"><Check size={12} />연결됨</span>}</div>
+      <p className="mt-1 text-xs text-secondary">심층 분석을 이어갈 NotebookLM 주소를 이 현장 Workspace에 한 번만 연결합니다.</p>
+      <div className="mt-3 flex flex-col gap-2 md:flex-row">
+        <input type="url" value={notebookUrl} onChange={(event) => setNotebookUrl(event.target.value)} placeholder="https://notebooklm.google.com/..." className="min-h-11 flex-1 rounded-xl border border-ui bg-surface px-3 text-sm" />
+        <button disabled={!notebookUrl.trim() || busy === "notebook"} onClick={() => void saveNotebookLink()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-40"><Save size={16} />{busy === "notebook" ? "저장 중…" : "주소 저장"}</button>
+        {savedNotebookUrl && <a href={savedNotebookUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange px-4 text-sm font-extrabold">NotebookLM 열기 <ExternalLink size={15} /></a>}
+      </div>
     </div>
   </section>;
 }
