@@ -66,18 +66,41 @@ async function ensureFolder(token: string, name: string, parentId?: string) {
   return matches[0] || createFolder(token, name, parentId);
 }
 
-export async function createSharedDriveWorkspace(projectTitle: string) {
-  const token = await getAccessToken();
+async function resolveProjectsRoot(token: string) {
   const configuredRoot = process.env.GATHERLY_GOOGLE_DRIVE_ROOT_FOLDER_ID?.trim();
   const root = configuredRoot ? { id: configuredRoot } : await ensureFolder(token, "Gatherly");
   const projects = await ensureFolder(token, "Projects", root.id);
+  return { root, projects };
+}
+
+export async function listSharedDriveWorkspaceCandidates(projectTitle: string, fieldDayId: string) {
+  const token = await getAccessToken();
+  const { projects } = await resolveProjectsRoot(token);
+  const names = [projectTitle, `${projectTitle} (${fieldDayId.slice(0, 8)})`];
+  const results = await Promise.all(names.map((name) => findFolders(token, name, projects.id)));
+  const seen = new Set<string>();
+  return results.flat().filter((folder) => {
+    if (seen.has(folder.id)) return false;
+    seen.add(folder.id);
+    return true;
+  }).map((folder) => ({
+    id: folder.id,
+    name: folder.name,
+    webViewLink: folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`,
+    legacy: folder.name !== projectTitle,
+  }));
+}
+
+export async function createSharedDriveWorkspace(projectTitle: string) {
+  const token = await getAccessToken();
+  const { root, projects } = await resolveProjectsRoot(token);
   const existing = await findFolders(token, projectTitle, projects.id);
   if (existing.length > 1) throw new Error("DRIVE_WORKSPACE_NAME_AMBIGUOUS");
   const project = existing[0] || await createFolder(token, projectTitle, projects.id);
   for (const name of ["00_사전조사", "01_현장자료", "02_조사계획", "03_분석자료", "04_최종보고서"]) {
     await ensureFolder(token, name, project.id);
   }
-  return { id: project.id, name: project.name, webViewLink: project.webViewLink || `https://drive.google.com/drive/folders/${project.id}` };
+  return { rootFolderId: root.id, id: project.id, name: project.name, webViewLink: project.webViewLink || `https://drive.google.com/drive/folders/${project.id}` };
 }
 
 export async function getDriveFolder(folderId: string) {
