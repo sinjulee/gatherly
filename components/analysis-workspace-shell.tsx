@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { MapPin } from "lucide-react";
-import { AnalysisBriefWorkspace } from "@/components/analysis-brief-workspace";
+import { AnalysisBriefWorkspaceUnified } from "@/components/analysis-brief-workspace-unified";
 import { QuickAnalysisWorkspace } from "@/components/quick-analysis-workspace";
 import { ResearchPipelineWorkspace } from "@/components/research-pipeline-workspace";
 import { ResearchPrepWorkspace } from "@/components/research-prep-workspace";
@@ -21,15 +21,6 @@ export function AnalysisWorkspaceShell({
   initialBundles: Bundle[];
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
-
-  const orderedProjects = useMemo(() => {
-    if (!projectId) return projects;
-    const selected = projects.find((project) => project.id === projectId);
-    if (!selected) return projects;
-    return [selected, ...projects.filter((project) => project.id !== projectId)];
-  }, [projectId, projects]);
-
-  const projectOptions = orderedProjects.map((project) => ({ id: project.id, title: project.title }));
   const selectedProject = projects.find((project) => project.id === projectId);
 
   return (
@@ -39,7 +30,7 @@ export function AnalysisWorkspaceShell({
           <div className="min-w-0">
             <p className="text-xs font-extrabold text-orange">ACTIVE FIELD PROJECT</p>
             <h2 className="mt-1 text-xl font-extrabold">정리·분석할 현장</h2>
-            <p className="mt-1 text-sm text-secondary">여기서 한 번 선택하면 아래 모든 분석 기능에 같은 현장이 적용됩니다.</p>
+            <p className="mt-1 text-sm text-secondary">이 선택이 아래 사전조사, Quick Analysis, Source Bundle, 분석 방향 설정 전체에 동일하게 적용됩니다.</p>
           </div>
           <label className="flex w-full min-w-0 flex-col gap-2 text-sm font-extrabold md:w-auto md:min-w-[280px]">
             현장 선택
@@ -63,12 +54,12 @@ export function AnalysisWorkspaceShell({
         )}
       </section>
 
-      {projectId && selectedProject ? (
-        <div key={projectId} className="analysis-shared-project-content">
+      {selectedProject ? (
+        <div key={selectedProject.id} className="analysis-shared-project-content">
           <ResearchPrepWorkspace project={{ id: selectedProject.id, title: selectedProject.title }} />
-          <QuickAnalysisWorkspace projects={projectOptions} />
-          <ResearchPipelineWorkspace projects={orderedProjects} initialMaterials={initialMaterials} initialBundles={initialBundles} />
-          <AnalysisBriefWorkspace projects={projectOptions} />
+          <QuickAnalysisWorkspace project={{ id: selectedProject.id, title: selectedProject.title }} />
+          <ResearchPipelineWorkspace project={selectedProject} initialMaterials={initialMaterials} initialBundles={initialBundles} />
+          <AnalysisBriefWorkspaceUnified project={{ id: selectedProject.id, title: selectedProject.title }} />
         </div>
       ) : (
         <div className="paper-card mt-5 p-8 text-center text-sm text-secondary">상단에서 정리·분석할 현장을 선택해 주세요.</div>
