@@ -4,13 +4,15 @@
 
 - 제품명: Gatherly
 - 문서명: Phase 2 Product Requirements Document
-- 버전: 1.1
+- 버전: 1.2
 - 기준일: 2026-09-14
 - 기준 제품: Gatherly 1차 개발 완료본
 - 기준 브랜치: `phase2/research-execution-system`
 - 제품 포지셔닝: **AI Field Research OS / Research Execution System**
 
 2차 개발은 Gatherly를 `자료를 모아 AI가 분석하고 보고서를 만드는 도구`에서 `조사를 계획하고 현장에서 실행하며 누락 없이 완결하는 시스템`으로 확장한다.
+
+중요 원칙은 **계획이 기록의 전제조건이 되어서는 안 된다**는 것이다. Research Plan이 있는 조사와 즉석 관찰 기록을 모두 1급 사용자 흐름으로 지원한다.
 
 ---
 
@@ -29,9 +31,21 @@ Gatherly가 소유할 핵심은 다음 실행 상태다.
 → 현장을 떠나도 되는가
 ```
 
+동시에, 계획에 없던 중요한 발견도 손실 없이 포착해야 한다.
+
+```text
+예상하지 못한 발견
+→ 즉석 기록
+→ 자유 Evidence 저장
+→ 나중에 Target/Checkpoint에 연결
+   또는 새 Target/Checkpoint로 승격
+→ 분석/보고서에 활용
+```
+
 제품 핵심 루프:
 
 ```text
+[Planned]
 사전조사
 → Research Plan
 → 방문대상/부스 계획
@@ -44,6 +58,13 @@ Gatherly가 소유할 핵심은 다음 실행 상태다.
 → 부스 종료
 → 현장 Closeout
 → 분석/보고서
+
+[Unplanned]
+현장 관찰
+→ 즉석 기록
+→ 자유 Evidence
+→ 선택적 후분류/매핑
+→ 분석/보고서
 ```
 
 ---
@@ -53,12 +74,14 @@ Gatherly가 소유할 핵심은 다음 실행 상태다.
 1. 현장 방문 전에 조사 목적과 방문대상을 구조화한다.
 2. 방문할 기업/부스/제품별로 사전 체크사항을 저장한다.
 3. 실제 방문 시 **해당 부스 체크리스트 화면 안에서 사진·영상·음성·텍스트 기록을 바로 추가**할 수 있게 한다.
-4. 기록된 Evidence를 체크사항에 연결한다.
-5. Target/부스별 Coverage를 실시간 계산한다.
-6. 미충족 체크사항을 Evidence Gap으로 표시한다.
-7. Gap을 구체적인 Next Action으로 변환한다.
-8. 부스를 떠나기 전 Booth Closeout, 행사장을 떠나기 전 Field Closeout을 제공한다.
-9. 기존 Quick Analysis와 Final Report가 Research Plan과 Coverage를 활용하도록 연결한다.
+4. **Research Plan이나 Checkpoint가 없어도 즉석 관찰 기록을 바로 추가할 수 있게 한다.**
+5. 계획 없이 생성한 Evidence를 나중에 Target/Checkpoint에 연결하거나 새 조사 항목으로 승격할 수 있게 한다.
+6. 기록된 Evidence를 체크사항에 연결한다.
+7. Target/부스별 Coverage를 실시간 계산한다.
+8. 미충족 체크사항을 Evidence Gap으로 표시한다.
+9. Gap을 구체적인 Next Action으로 변환한다.
+10. 부스를 떠나기 전 Booth Closeout, 행사장을 떠나기 전 Field Closeout을 제공한다.
+11. 기존 Quick Analysis와 Final Report가 Research Plan, Coverage, 자유 Evidence를 모두 활용하도록 연결한다.
 
 ---
 
@@ -107,6 +130,7 @@ Coverage 60%
 [P2] 담당자 연락처 확보      ✓
 
 [사진 촬영] [앨범] [메모] [음성] [영상]
+[즉석 관찰 기록]
 
 현재 부족한 정보
 - 설치비
@@ -117,7 +141,7 @@ Coverage 60%
 - 제품 전체 외관 사진 1장 추가 촬영
 ```
 
-자료 저장 시 현재 Target/부스와 선택한 Checkpoint가 자동 Context로 붙는다.
+자료 저장 시 현재 Target/부스와 선택한 Checkpoint가 있으면 Context로 붙는다.
 
 사용자는 체크사항을 누른 뒤 바로:
 
@@ -129,7 +153,42 @@ Coverage 60%
 
 을 수행할 수 있어야 한다.
 
-### 4.3 부스 종료
+### 4.3 현장: 즉석 관찰 / 자유 기록
+
+현장에서는 계획에 없던 정보가 중요할 수 있다. 따라서 사용자는 다음 상황에서도 기록을 막힘 없이 추가할 수 있어야 한다.
+
+- Research Plan이 아직 없음
+- 현재 방문 Target이 없음
+- 특정 Checkpoint를 선택하지 않음
+- 기존 체크리스트와 관련 없는 새로운 발견
+
+사용자 흐름:
+
+```text
+[즉석 관찰 기록]
+→ 사진/메모/음성/영상 추가
+→ FieldDay에 Material로 저장
+→ 선택적으로 현재 Target만 연결
+→ Checkpoint 미지정 상태 허용
+→ 이후 정리·분석함에서 후분류
+```
+
+후속 처리:
+
+```text
+자유 Evidence
+→ 기존 Checkpoint에 연결
+OR
+→ 새 Checkpoint 생성 후 연결
+OR
+→ 새 Target 생성 후 연결
+OR
+→ 계획 밖 Evidence로 그대로 유지
+```
+
+자유 Evidence는 Coverage를 자동으로 올리지 않는다. Checkpoint에 연결되거나 사용자가 특정 Checkpoint 충족 근거로 확정했을 때 Coverage에 반영한다.
+
+### 4.4 부스 종료
 
 `이 부스 조사 완료`를 누르면 다음을 확인한다.
 
@@ -137,10 +196,11 @@ Coverage 60%
 - 미충족 P1/P2
 - Required Evidence 누락
 - AI 추천 마지막 질문/촬영
+- 해당 부스에서 생성된 자유 Evidence 중 미분류 자료 수
 
 미충족이 있어도 사용자가 사유를 남기고 부스를 종료할 수 있다.
 
-### 4.4 전체 현장 종료
+### 4.5 전체 현장 종료
 
 ```text
 현장 종료 점검
@@ -148,12 +208,13 @@ Coverage 60%
 → Target별 Coverage
 → 미방문 Target
 → 미충족 P1/P2
+→ 미분류 자유 Evidence
 → 마지막 Next Action
 → 계속 조사 / 강제 종료
 → Closeout Snapshot 저장
 ```
 
-### 4.5 분석/보고서
+### 4.6 분석/보고서
 
 최종 분석은 다음 Context를 함께 사용할 수 있어야 한다.
 
@@ -161,6 +222,7 @@ Coverage 60%
 Research Plan
 + Target/Checkpoint
 + Evidence Mapping
++ 자유 Evidence
 + Coverage Snapshot
 + Open Gap
 + Quick Analysis
@@ -168,12 +230,16 @@ Research Plan
 → Final Report
 ```
 
+계획 밖에서 발견된 Evidence도 최종 분석에서 제외되지 않는다. 필요하면 `계획 외 주요 발견`으로 별도 표기할 수 있어야 한다.
+
 ---
 
 ## 5. 핵심 도메인
 
 ### ResearchPlan
 현장 전체 조사 목적과 실행 계획. 버전 관리하며 FieldDay당 기본 활성 Plan은 1개.
+
+Research Plan은 선택 기능이다. FieldDay는 Plan 없이도 Capture/Quick Analysis/Final Report가 가능해야 한다.
 
 ### ResearchTarget
 방문/조사 대상. 예: 기업, 부스, 제품, 기술, 인터뷰 대상, 장소.
@@ -223,6 +289,19 @@ Material과 Checkpoint의 연결.
 - 현재 Checkpoint에서 바로 기록하여 자동 연결
 - 수동 연결
 - AI 추천 후 확인
+- 자유 Evidence의 사후 연결
+
+### Free Evidence / Spontaneous Observation
+계획·Target·Checkpoint와 연결되지 않은 현장 기록이다.
+
+별도 저장소를 만들지 않고 기존 Material을 사용하며, `EvidenceMapping이 없는 상태`를 정상 상태로 허용한다.
+
+필요 시 선택적 Context를 보존한다.
+
+- 현재 Target
+- 관찰 시점
+- 사용자 메모
+- `UNPLANNED` capture mode
 
 ### Coverage
 단순 자료 개수가 아니라 계획된 조사 항목 충족도.
@@ -234,6 +313,8 @@ Material과 Checkpoint의 연결.
 - PARTIAL = 50%
 - SATISFIED = 100%
 - NOT_APPLICABLE = 분모 제외
+
+자유 Evidence는 Checkpoint에 연결되기 전에는 Coverage에 영향을 주지 않는다.
 
 ### Evidence Gap
 미충족/부분충족/Blocked/Required Evidence 부족 항목.
@@ -265,11 +346,13 @@ Target/부스 단위 종료 스냅샷.
 ### 6.2 오늘의 현장
 
 - 활성 Research Plan
+- Plan이 없을 경우 `계획 없이 기록 시작` 제공
 - 전체 Coverage
 - P1 미충족
 - 방문 예정/완료 부스 수
 - 다음 추천 Target
 - Next Action
+- **즉석 관찰 기록 버튼**
 - 현장 종료 점검
 
 ### 6.3 방문대상/부스 상세 — 2차 핵심 화면
@@ -283,31 +366,63 @@ Target/부스 단위 종료 스냅샷.
 - 각 체크사항 상태 변경
 - 체크사항별 Evidence 보기
 - **사진/메모/음성/영상 즉시 추가**
+- **Checkpoint와 무관한 즉석 관찰 기록 추가**
 - Gap 확인
 - Next Action
 - 부스 조사 완료
 
 이 화면은 현장에서 가장 많이 쓰는 화면으로 설계한다.
 
-### 6.4 자료수집함
+### 6.4 빠른 기록 / 자유 Capture
 
-기존 기능 유지. 부스 화면에서 저장한 자료도 동일 Material 저장소에 들어간다. 자료수집함은 전체 Evidence 조회/보정/추가 업로드 역할을 유지한다.
+Plan 또는 Checkpoint 없이 다음을 바로 기록할 수 있어야 한다.
 
-### 6.5 정리·분석함
+- 사진
+- 앨범
+- 텍스트 메모
+- 음성
+- 영상
+
+진입점:
+
+- 오늘의 현장
+- 부스 상세
+- 기존 자료수집함
+
+저장 후 사용자는 바로 현장 흐름으로 돌아갈 수 있어야 한다.
+
+### 6.5 자료수집함
+
+기존 기능 유지. 부스 화면과 자유 Capture에서 저장한 자료도 동일 Material 저장소에 들어간다.
+
+추가 표시/필터:
+
+- 계획 연결됨
+- Target만 연결됨
+- 미분류 자유 Evidence
+- Checkpoint 연결 상태
+
+자료수집함은 전체 Evidence 조회/보정/후분류/추가 업로드 역할을 유지한다.
+
+### 6.6 정리·분석함
 
 - Coverage Matrix
 - Target별 진행률
 - Evidence Mapping 검토
+- **미분류 자유 Evidence Review**
+- 기존 Checkpoint 연결
+- 새 Checkpoint/Target으로 승격
 - Gap 목록
 - Quick Analysis
 - Analysis Brief
 
-### 6.6 최종 보고서
+### 6.7 최종 보고서
 
 보고서 생성 전:
 - Coverage
 - 미확인 P1/P2
 - Closeout 여부
+- 미분류 자유 Evidence
 
 를 보여준다. 미충족 항목이 있어도 보고서 생성을 막지는 않되 한계로 명시한다.
 
@@ -320,11 +435,15 @@ Target/부스 단위 종료 스냅샷.
 - 사전조사 텍스트를 Research Plan 초안으로 구조화
 - Checkpoint/Required Evidence 추천
 - Evidence Mapping 추천
+- **자유 Evidence의 관련 Target/Checkpoint 추천**
+- **자유 Evidence에서 새로운 조사 이슈/Checkpoint 후보 제안**
 - Gap 설명
 - Next Action 생성
 - Booth/Field Closeout 요약
 - Quick Analysis
 - Final Report
+
+AI가 자유 Evidence를 자동 삭제하거나 임의로 Checkpoint 완료 처리해서는 안 된다.
 
 ### 외부 AI
 
@@ -335,9 +454,14 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 ## 8. 데이터/신뢰성 원칙
 
 - 원본 Material은 Plan/Mapping 처리로 수정하지 않는다.
+- Research Plan은 Capture의 필수조건이 아니다.
+- Target/Checkpoint가 없어도 Material 저장은 정상 완료되어야 한다.
 - 현재 Checkpoint에서 생성된 Material은 Target/Checkpoint Context를 함께 저장한다.
+- 즉석 관찰은 최소 FieldDay Context만으로 저장 가능해야 한다.
+- 자유 Evidence는 나중에 여러 Checkpoint에 연결할 수 있다.
 - AI 매핑은 rationale/confidence를 저장하고 수정 가능해야 한다.
 - Coverage는 AI 없이 DB 상태만으로 재현 가능해야 한다.
+- 자유 Evidence는 매핑 전 Coverage 계산에서 제외한다.
 - AI Worker 장애 시에도 수동 체크/기록/Mapping/Closeout이 가능해야 한다.
 - 기존 IndexedDB 업로드 대기와 재시도 기능을 그대로 유지한다.
 
@@ -354,6 +478,9 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 - RequiredEvidence
 - Booth Detail 실행 화면
 - Checkpoint 화면 내 직접 Capture
+- **Plan 없는 자유 Capture**
+- **부스 내 즉석 관찰 Capture**
+- **미분류 Evidence Review 및 사후 Mapping**
 - EvidenceMapping
 - Coverage Engine
 - Evidence Gap
@@ -380,8 +507,8 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 ```text
 2A. Research Plan / Target / Booth / Checkpoint Core
 2B. 조사 준비 UI
-2C. Booth Detail + In-context Capture
-2D. Evidence Mapping + Coverage
+2C. Booth Detail + In-context Capture + Free Capture
+2D. Evidence Mapping + Unclassified Evidence Review + Coverage
 2E. Gap + Next Action
 2F. Booth Closeout + Field Closeout
 2G. Quick Analysis / Final Report 연계
@@ -392,7 +519,9 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 
 ## 11. 완료 정의
 
-2차 개발은 실제 iPhone에서 다음 흐름이 끊기지 않고 완료될 때 종료한다.
+2차 개발은 실제 iPhone에서 다음 두 흐름이 모두 끊기지 않고 완료될 때 종료한다.
+
+계획형 조사:
 
 ```text
 현장 생성
@@ -408,8 +537,19 @@ NotebookLM/Gemini/ChatGPT 등은 사전조사와 심층 리서치에 자유롭�
 → Final Report
 ```
 
+즉석 관찰:
+
+```text
+현장 생성 또는 기존 현장 선택
+→ 계획 없이 즉석 관찰 기록
+→ Material 저장
+→ 계속 현장 기록
+→ 이후 필요 시 Target/Checkpoint 연결 또는 새 항목 생성
+→ Quick Analysis / Final Report 활용
+```
+
 핵심 제품 메시지:
 
-> **Gatherly는 현장 방문 전에 무엇을 확인할지 계획하고, 현장에서는 체크리스트와 기록을 한 화면에서 실행하며, 무엇이 빠졌는지 실시간으로 찾아 다음 조사 행동까지 안내하는 AI Field Research OS다.**
+> **Gatherly는 현장 방문 전에 무엇을 확인할지 계획하고, 현장에서는 체크리스트와 기록을 한 화면에서 실행하며, 계획에 없던 발견도 즉시 놓치지 않고 기록하고, 무엇이 빠졌는지 실시간으로 찾아 다음 조사 행동까지 안내하는 AI Field Research OS다.**
 
-> **Capture evidence. Find what’s missing. Decide what to investigate next.**
+> **Plan what matters. Capture what happens. Find what’s missing.**
