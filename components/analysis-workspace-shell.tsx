@@ -5,6 +5,7 @@ import { MapPin } from "lucide-react";
 import { AnalysisBriefWorkspace } from "@/components/analysis-brief-workspace";
 import { QuickAnalysisWorkspace } from "@/components/quick-analysis-workspace";
 import { ResearchPipelineWorkspace } from "@/components/research-pipeline-workspace";
+import { ResearchPrepWorkspace } from "@/components/research-prep-workspace";
 
 type Project = { id: string; title: string; location: string | null; fieldDate: string };
 type ResearchMaterial = { id: string; fieldDayId: string | null; type: string; title: string; reviewStatus: string; isImportant: boolean; createdAt: string };
@@ -62,8 +63,9 @@ export function AnalysisWorkspaceShell({
         )}
       </section>
 
-      {projectId ? (
+      {projectId && selectedProject ? (
         <div key={projectId} className="analysis-shared-project-content">
+          <ResearchPrepWorkspace project={{ id: selectedProject.id, title: selectedProject.title }} />
           <QuickAnalysisWorkspace projects={projectOptions} />
           <ResearchPipelineWorkspace projects={orderedProjects} initialMaterials={initialMaterials} initialBundles={initialBundles} />
           <AnalysisBriefWorkspace projects={projectOptions} />
