@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Check, Clock3, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 
 type Project = { id: string; title: string };
@@ -41,19 +41,17 @@ function statusIcon(status: string) {
   return <Clock3 size={15} />;
 }
 
-export function QuickAnalysisWorkspace({ projects }: { projects: Project[] }) {
-  const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+export function QuickAnalysisWorkspace({ project }: { project: Project }) {
+  const projectId = project.id;
   const [instruction, setInstruction] = useState("");
   const [jobs, setJobs] = useState<QuickJob[]>([]);
   const [worker, setWorker] = useState<WorkerState>({ online: false, ageMs: null });
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
 
-  const projectTitle = useMemo(() => projects.find((project) => project.id === projectId)?.title ?? "", [projects, projectId]);
   const latestJob = jobs[0];
 
   useEffect(() => {
-    if (!projectId) return;
     let alive = true;
 
     async function load() {
@@ -77,7 +75,7 @@ export function QuickAnalysisWorkspace({ projects }: { projects: Project[] }) {
   }, [projectId]);
 
   async function requestAnalysis() {
-    if (!projectId || !instruction.trim() || submitting) return;
+    if (!instruction.trim() || submitting) return;
     setSubmitting(true);
     setNotice("");
     try {
@@ -99,31 +97,18 @@ export function QuickAnalysisWorkspace({ projects }: { projects: Project[] }) {
     }
   }
 
-  function applyPreset(text: string) {
-    setInstruction(text);
-  }
-
   return (
     <section className="collage-card mt-5 bg-orange p-5 md:p-6">
-      <div className="flex flex-col gap-4 border-b border-ink/15 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-extrabold">FIELD QUICK ANALYSIS</p>
-          <h2 className="mt-1 text-2xl font-extrabold">현장에서 바로 분석하기</h2>
-          <p className="mt-1 max-w-3xl text-sm">아이폰에서 요청하면 Mac mini의 Codex CLI가 현재 현장자료와 최신 Analysis Brief를 읽고 Quick Report를 만듭니다. NotebookLM을 열 필요가 없습니다.</p>
-        </div>
-        <label className="text-sm font-extrabold">
-          현장
-          <select value={projectId} onChange={(event) => { setProjectId(event.target.value); setJobs([]); setNotice(""); }} className="ml-3 min-h-11 rounded-lg border border-ink/20 bg-surface px-3">
-            <option value="">선택</option>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
-          </select>
-        </label>
+      <div className="border-b border-ink/15 pb-5">
+        <p className="text-sm font-extrabold">FIELD QUICK ANALYSIS</p>
+        <h2 className="mt-1 text-2xl font-extrabold">현장에서 바로 분석하기</h2>
+        <p className="mt-1 max-w-3xl text-sm">현재 선택된 <strong>{project.title}</strong>의 현장자료와 최신 Analysis Brief를 Mac mini의 Codex CLI가 읽어 Quick Report를 만듭니다.</p>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-xl bg-surface/95 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <strong className="text-sm">{projectTitle || "현장을 선택하세요"}</strong>
+            <strong className="text-sm">{project.title}</strong>
             <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-extrabold ${worker.online ? "bg-mint" : "bg-page text-secondary"}`}>
               <Activity size={12} />{worker.online ? "Mac mini 분석 엔진 연결됨" : "분석 엔진 확인 필요"}
             </span>
@@ -131,11 +116,11 @@ export function QuickAnalysisWorkspace({ projects }: { projects: Project[] }) {
           {worker.codexVersion && <p className="mt-2 text-[11px] font-semibold text-secondary">{worker.codexVersion}</p>}
           <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="지금 알고 싶은 것을 바로 입력하세요. 예) 지금까지 본 탄소저감 AI 기술 중 물류 현장에 적용 가능성이 높은 5개를 근거와 함께 우선순위로 정리해줘." className="mt-4 min-h-32 w-full rounded-xl border border-ui bg-page p-3 text-sm" />
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" onClick={() => applyPreset("지금까지 수집한 자료의 핵심 발견을 5개 이내로 요약하고, 각 발견의 현장 근거를 연결해줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">핵심 요약</button>
-            <button type="button" onClick={() => applyPreset("지금까지 수집한 자료에서 가장 중요한 기회와 리스크를 우선순위로 분석하고, 현장에서 추가로 확인해야 할 사항을 알려줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">기회·리스크</button>
-            <button type="button" onClick={() => applyPreset("현재 자료만으로 부족한 정보가 무엇인지 찾아서, 남은 현장 시간 동안 추가로 조사하거나 촬영하거나 질문해야 할 항목을 우선순위로 정리해줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">추가 조사 목록</button>
+            <button type="button" onClick={() => setInstruction("지금까지 수집한 자료의 핵심 발견을 5개 이내로 요약하고, 각 발견의 현장 근거를 연결해줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">핵심 요약</button>
+            <button type="button" onClick={() => setInstruction("지금까지 수집한 자료에서 가장 중요한 기회와 리스크를 우선순위로 분석하고, 현장에서 추가로 확인해야 할 사항을 알려줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">기회·리스크</button>
+            <button type="button" onClick={() => setInstruction("현재 자료만으로 부족한 정보가 무엇인지 찾아서, 남은 현장 시간 동안 추가로 조사하거나 촬영하거나 질문해야 할 항목을 우선순위로 정리해줘.")} className="rounded-full bg-page px-3 py-2 text-xs font-bold">추가 조사 목록</button>
           </div>
-          <button disabled={!projectId || !instruction.trim() || submitting} onClick={() => void requestAnalysis()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-40"><Sparkles size={18} />{submitting ? "요청 중…" : "빠른 분석 요청"}</button>
+          <button disabled={!instruction.trim() || submitting} onClick={() => void requestAnalysis()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-extrabold text-white disabled:opacity-40"><Sparkles size={18} />{submitting ? "요청 중…" : "빠른 분석 요청"}</button>
           {!worker.online && <p className="mt-3 text-xs font-semibold text-secondary">웹 서버가 방금 재시작된 경우 잠시 후 자동 연결됩니다. 계속 오프라인이면 Mac mini에서 Gatherly 서버와 Quick Analysis worker 상태를 확인하세요.</p>}
         </div>
 
