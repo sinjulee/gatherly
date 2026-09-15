@@ -64,6 +64,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .collage-card.bg-surface { border: 1px solid #e2ded5; }
 .calendar-card { background: var(--color-black); color: var(--color-surface); border: 2px solid var(--color-black); border-radius: 16px 12px 18px 10px; }
 .mobile-bottom-space { padding-bottom: 88px; }
+.mobile-main-nav { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+.company-action-bar { bottom: calc(72px + env(safe-area-inset-bottom)); }
 
 /* The analysis page owns one shared project selector. Child workspaces still keep their
    internal selector for standalone reuse, but it is hidden when rendered in the unified shell. */

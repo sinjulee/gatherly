@@ -6,6 +6,9 @@ export type QueuedUpload = {
   file: File;
   title: string;
   capturedAt?: string;
+  companyId?: string;
+  sourceIndexId?: string;
+  exhibitionId?: string;
   state: QueueState;
   error?: string;
   createdAt: string;

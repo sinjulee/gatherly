@@ -7,6 +7,166 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Exhibition {
+  id          String              @id @default(cuid())
+  name        String
+  nameEn      String?
+  venue       String?
+  location    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  description String?
+  status      String              @default("DRAFT")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  fieldDays   FieldDay[]
+  companies   ExhibitionCompany[]
+  indexes     CurationIndex[]
+
+  @@index([status, startDate])
+}
+
+model Company {
+  id                   String              @id @default(cuid())
+  externalId           String?
+  name                 String
+  nameEn               String?
+  country              String?
+  location             String?
+  founded              Int?
+  website              String?
+  websiteDomain        String?
+  companySummary       String?
+  businessType         String?
+  companySize          String?
+  mainProductsJson     String?
+  flagshipProduct      String?
+  productSummary       String?
+  targetCustomerJson   String?
+  customerExamplesJson String?
+  businessModel        String?
+  coreTechnology       String?
+  aiDigital            String?
+  competitiveAdvantage String?
+  competitorsJson      String?
+  domesticMarket       String?
+  globalMarket         String?
+  growthSignals        String?
+  funding              String?
+  revenue              String?
+  certificationsJson   String?
+  recentNews           String?
+  recentNewsDate       DateTime?
+  source               String?
+  lastChecked          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  exhibitions          ExhibitionCompany[]
+  tags                 CompanyTag[]
+  indexes              CompanyIndex[]
+  materials            Material[]
+
+  @@index([name])
+  @@index([websiteDomain])
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  name      String
+  kind      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  companies CompanyTag[]
+
+  @@unique([name, kind])
+  @@index([kind])
+}
+
+model CompanyTag {
+  id         String   @id @default(cuid())
+  companyId  String
+  tagId      String
+  source     String
+  confidence Float?
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, tagId])
+  @@index([companyId])
+  @@index([tagId])
+}
+
+model CurationIndex {
+  id           String         @id @default(cuid())
+  exhibitionId String
+  name         String
+  description  String?
+  indexType    String
+  icon         String?
+  color        String?
+  isSystem     Boolean        @default(false)
+  isDynamic    Boolean        @default(false)
+  ruleJson     String?
+  sortOrder    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  exhibition   Exhibition     @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
+  companies    CompanyIndex[]
+  sourceMaterials Material[]
+
+  @@unique([exhibitionId, name])
+  @@index([exhibitionId])
+  @@index([indexType])
+}
+
+model CompanyIndex {
+  id        String        @id @default(cuid())
+  companyId String
+  indexId   String
+  reason    String?
+  priority  Int?
+  sortOrder Int?
+  source    String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  index     CurationIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, indexId])
+  @@index([indexId])
+  @@index([companyId])
+}
+
+model ExhibitionCompany {
+  id                       String     @id @default(cuid())
+  exhibitionId             String
+  companyId                String
+  externalCompanyId        String?
+  booth                    String?
+  industry                 String?
+  category                 String?
+  exhibitionFocus          String?
+  whyInteresting           String?
+  benchmarkPoint           String?
+  collaborationOpportunity String?
+  fieldObservation         String?
+  questionsJson            String?
+  riskOrUnknown            String?
+  rawTagsJson              String?
+  source                   String?
+  lastChecked              DateTime?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  exhibition               Exhibition @relation(fields: [exhibitionId], references: [id], onDelete: Cascade)
+  company                  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([exhibitionId, companyId])
+  @@index([exhibitionId])
+  @@index([companyId])
+  @@index([booth])
+}
+
 model FieldDay {
   id                          String              @id @default(uuid())
   title                       String
@@ -21,6 +181,8 @@ model FieldDay {
   createdAt                   DateTime            @default(now())
   updatedAt                   DateTime            @updatedAt
   deletedAt                   DateTime?
+  exhibitionId                String?
+  exhibition                  Exhibition?         @relation(fields: [exhibitionId], references: [id], onDelete: SetNull)
   materials                   Material[]
   reports                     Report[]
   sourceBundles               SourceBundle[]
@@ -34,6 +196,7 @@ model FieldDay {
 
   @@index([status, deletedAt])
   @@index([driveProjectFolderId])
+  @@index([exhibitionId])
 }
 
 model Material {
@@ -60,11 +223,17 @@ model Material {
   deletedAt         DateTime?
   fieldDayId        String?
   fieldDay          FieldDay?          @relation(fields: [fieldDayId], references: [id], onDelete: SetNull)
+  companyId         String?
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  sourceIndexId     String?
+  sourceIndex       CurationIndex?     @relation(fields: [sourceIndexId], references: [id], onDelete: SetNull)
   sourceBundleItems SourceBundleItem[]
 
   @@index([fieldDayId, deletedAt, createdAt])
   @@index([type, uploadStatus])
   @@index([reviewStatus, deletedAt])
+  @@index([companyId, deletedAt, createdAt])
+  @@index([sourceIndexId])
 }
 
 model Report {

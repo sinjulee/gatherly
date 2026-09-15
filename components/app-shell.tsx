@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, FileText, Home, Inbox, MapPin, Plus, Settings2 } from "lucide-react";
+import { BarChart3, CalendarDays, FileText, FolderKanban, Home, Inbox, MapPin, Plus, Settings2 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "오늘의 현장", icon: Home },
   { href: "/inbox", label: "자료수집함", icon: Inbox },
+  { href: "/exhibitions", label: "현장 큐레이션", icon: FolderKanban },
   { href: "/analysis", label: "정리·분석함", icon: BarChart3 },
   { href: "/reports", label: "최종 보고서", icon: FileText },
 ] as const;
@@ -33,14 +34,15 @@ function MiniCalendar({ mobile = false }: { mobile?: boolean }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isActive = (href: string) => href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   return <div className="min-h-screen bg-page lg:flex">
     <aside className="hidden w-[274px] shrink-0 flex-col bg-ink px-6 py-7 text-white lg:flex">
       <Link href="/" className="mb-10 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange text-lg font-extrabold text-ink">G</span><span className="text-xl font-extrabold tracking-tight">gatherly<span className="text-orange">.</span></span></Link>
-      <nav className="space-y-2" aria-label="주 메뉴">{navItems.map(({ href, label, icon: Icon }) => { const active = pathname === href; return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`relative z-0 flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition focus-visible:z-10 ${active ? "bg-orange text-ink opacity-100" : "bg-transparent text-white hover:border hover:border-orange hover:bg-white/5"}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} className="relative z-10 shrink-0" /><span className="relative z-10 min-w-0 break-keep">{label}</span></Link>; })}</nav>
+      <nav className="space-y-2" aria-label="주 메뉴">{navItems.map(({ href, label, icon: Icon }) => { const active = isActive(href); return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`relative z-0 flex min-h-12 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition focus-visible:z-10 ${active ? "bg-orange text-ink opacity-100" : "bg-transparent text-white hover:border hover:border-orange hover:bg-white/5"}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} className="relative z-10 shrink-0" /><span className="relative z-10 min-w-0 break-keep">{label}</span></Link>; })}</nav>
       <div className="mt-6"><MiniCalendar /><div className="mt-5 flex items-center justify-between border-t border-white/20 pt-5 text-white/70"><button aria-label="설정" className="rounded-lg p-2 hover:bg-white/10"><Settings2 size={17} /></button><span className="text-xs">혼자 쓰는 작업실</span></div></div>
     </aside>
     <main className="mobile-bottom-space min-w-0 flex-1"><div className="mx-auto max-w-[1320px] px-5 pt-5 md:px-10 lg:hidden"><MiniCalendar mobile /></div>{children}</main>
-    <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-ui bg-surface px-3 py-2 lg:hidden" aria-label="모바일 주 메뉴">{navItems.map(({ href, label, icon: Icon }) => { const active = pathname === href; return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-semibold ${active ? "bg-orange text-ink" : "text-secondary hover:bg-page"}`}><Icon size={20} strokeWidth={active ? 2.5 : 2} /><span>{label}</span></Link>; })}</nav>
+    <nav className="mobile-main-nav fixed inset-x-0 bottom-0 z-20 flex border-t border-ui bg-surface px-2 py-2 lg:hidden" aria-label="모바일 주 메뉴">{navItems.map(({ href, label, icon: Icon }) => { const active = isActive(href); return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${active ? "bg-orange text-ink" : "text-secondary hover:bg-page"}`}><Icon size={19} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{label}</span></Link>; })}</nav>
   </div>;
 }
 

@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "import:entech": "tsx scripts/import-entech-2026.ts",
+    "seed:entech-indexes": "tsx scripts/seed-entech-curation-indexes.ts",
     "worker:quick-analysis": "node scripts/gatherly-quick-analysis-worker.mjs",
     "worker:final-report": "node scripts/gatherly-final-report-worker.mjs",
     "bot:status": "tsx scripts/gatherly-status-bot/index.ts",

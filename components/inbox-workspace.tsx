@@ -115,6 +115,9 @@ export function InboxWorkspace({ projects }: { projects: FieldDaySummary[] }) {
       form.set("type", record.type);
       form.set("title", record.title);
       if (record.capturedAt) form.set("capturedAt", record.capturedAt);
+      if (record.companyId) form.set("companyId", record.companyId);
+      if (record.sourceIndexId) form.set("sourceIndexId", record.sourceIndexId);
+      if (record.exhibitionId) form.set("exhibitionId", record.exhibitionId);
       form.set("file", record.file);
       const response = await fetch("/api/materials/upload", { method: "POST", body: form });
       const data = await response.json();
@@ -186,7 +189,7 @@ export function InboxWorkspace({ projects }: { projects: FieldDaySummary[] }) {
 
   return (
     <div className="mt-7 grid min-w-0 max-w-full grid-cols-1 gap-5 overflow-hidden">
-      <section className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
+      <section id="capture" className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
         <div className="flex min-w-0 flex-col gap-4 border-b border-ui pb-5">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-secondary">자료 남기기</p>
@@ -231,7 +234,7 @@ export function InboxWorkspace({ projects }: { projects: FieldDaySummary[] }) {
         </div>}
       </section>
 
-      <section className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
+      <section id="memo" className="paper-card w-full min-w-0 max-w-full overflow-hidden p-4 md:p-6">
         <div className="flex min-w-0 flex-col gap-2 border-b border-ui pb-5"><p className="text-sm font-semibold text-secondary">텍스트 기록</p><h2 className="text-xl font-extrabold">텍스트 메모</h2></div>
         <form className="mt-5 grid min-w-0 grid-cols-1 gap-3" onSubmit={(event) => void saveText(event)}>
           <input className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-ui bg-surface px-3" placeholder="제목 (선택)" value={textTitle} onChange={(event) => setTextTitle(event.target.value)} />
