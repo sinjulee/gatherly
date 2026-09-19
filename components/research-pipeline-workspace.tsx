@@ -28,6 +28,7 @@ export function ResearchPipelineWorkspace({ project, initialMaterials, initialBu
   const [materials, setMaterials] = useState(initialMaterials);
   const [bundles, setBundles] = useState(initialBundles);
   const [selected, setSelected] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [buildingId, setBuildingId] = useState("");
@@ -35,6 +36,8 @@ export function ResearchPipelineWorkspace({ project, initialMaterials, initialBu
   const [driveUrls, setDriveUrls] = useState<Record<string, string>>({});
 
   const projectMaterials = useMemo(() => materials.filter((item) => item.fieldDayId === projectId), [materials, projectId]);
+  const normalizedQuery = searchQuery.normalize("NFKC").trim().toLocaleLowerCase("ko-KR");
+  const filteredMaterials = useMemo(() => projectMaterials.filter((item) => item.title.normalize("NFKC").toLocaleLowerCase("ko-KR").includes(normalizedQuery)), [projectMaterials, normalizedQuery]);
   const projectBundles = useMemo(() => bundles.filter((item) => item.fieldDayId === projectId), [bundles, projectId]);
   const curatedCount = projectMaterials.filter((item) => ["CURATED", "SYNC_READY", "SYNCED"].includes(item.reviewStatus)).length;
 
@@ -110,7 +113,15 @@ export function ResearchPipelineWorkspace({ project, initialMaterials, initialBu
 
     <section className="paper-card p-5 md:p-6">
       <div className="flex flex-col gap-3 border-b border-ui pb-4 md:flex-row md:items-center md:justify-between"><div><h3 className="text-xl font-extrabold">Evidence 검토</h3><p className="mt-1 text-sm text-secondary">NotebookLM에 넘길 자료만 체크하세요. 제외된 자료는 Bundle에 들어가지 않습니다.</p></div><button disabled={!selected.length || busy} onClick={() => void createBundle()} className="min-h-11 rounded-xl bg-orange px-4 text-sm font-extrabold text-ink disabled:opacity-40">{busy ? "생성 중…" : `선택 ${selected.length}개로 Source Bundle 만들기`}</button></div>
-      <div className="mt-4 grid gap-3">{projectMaterials.map((material) => <article key={material.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 md:flex-row md:items-center md:justify-between"><div className="flex min-w-0 items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5" disabled={material.reviewStatus === "EXCLUDED"} checked={selected.includes(material.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, material.id] : current.filter((id) => id !== material.id))} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm">{material.title}</strong><span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold">{material.type}</span>{material.isImportant && <Star size={15} fill="currentColor" />}</div><p className="mt-1 text-xs text-secondary">{statusLabel[material.reviewStatus] ?? material.reviewStatus}</p></div></div><div className="flex flex-wrap gap-2"><button onClick={() => void updateMaterial(material.id, { isImportant: !material.isImportant })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold">{material.isImportant ? "중요 해제" : "중요"}</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "CURATED" })} className="min-h-9 rounded-lg bg-mint px-3 text-xs font-bold">연구선정</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "EXCLUDED" })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold text-secondary">제외</button></div></article>)}{!projectMaterials.length && <p className="py-8 text-center text-sm text-secondary">이 현장에 저장된 자료가 없습니다.</p>}</div>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <label className="flex flex-1 flex-col gap-2 text-sm font-bold">
+          큐레이션 자료 검색
+          <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="자료 제목에 포함된 부스명·업체명 검색" className="min-h-12 w-full rounded-xl border border-ui bg-page px-4 text-base font-normal text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current" />
+        </label>
+        {searchQuery && <button type="button" onClick={() => setSearchQuery("")} className="min-h-12 rounded-xl bg-page px-4 text-sm font-bold">검색 초기화</button>}
+      </div>
+      <p role="status" className="mt-3 text-sm text-secondary">검색 결과 {filteredMaterials.length}개 / 전체 {projectMaterials.length}개 · 선택 {selected.length}개</p>
+      <div className="mt-4 grid gap-3">{filteredMaterials.map((material) => <article key={material.id} className="flex flex-col gap-3 rounded-xl bg-page p-4 md:flex-row md:items-center md:justify-between"><div className="flex min-w-0 items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5" disabled={material.reviewStatus === "EXCLUDED"} checked={selected.includes(material.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, material.id] : current.filter((id) => id !== material.id))} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm">{material.title}</strong><span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold">{material.type}</span>{material.isImportant && <Star size={15} fill="currentColor" />}</div><p className="mt-1 text-xs text-secondary">{statusLabel[material.reviewStatus] ?? material.reviewStatus}</p></div></div><div className="flex flex-wrap gap-2"><button onClick={() => void updateMaterial(material.id, { isImportant: !material.isImportant })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold">{material.isImportant ? "중요 해제" : "중요"}</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "CURATED" })} className="min-h-9 rounded-lg bg-mint px-3 text-xs font-bold">연구선정</button><button onClick={() => void updateMaterial(material.id, { reviewStatus: "EXCLUDED" })} className="min-h-9 rounded-lg bg-surface px-3 text-xs font-bold text-secondary">제외</button></div></article>)}{!filteredMaterials.length && <p className="py-8 text-center text-sm text-secondary">{projectMaterials.length ? "검색 결과가 없습니다. 다른 부스명이나 업체명으로 검색해 보세요." : "이 현장에 저장된 자료가 없습니다."}</p>}</div>
     </section>
 
     <section className="paper-card p-5 md:p-6">
