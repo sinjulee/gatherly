@@ -59,6 +59,7 @@ export function ExhibitionCompanySearch({
         />
         {query && <button type="button" onClick={() => setQuery("")} className="min-h-12 rounded-xl bg-ink px-4 text-sm font-bold text-white">초기화</button>}
       </div>
+      <p className="mt-2 text-sm text-secondary">기업명, 부스번호, 제품명으로 빠르게 찾을 수 있습니다.</p>
       <p role="status" className="mt-3 text-sm text-secondary">검색 결과 {filteredMemberships.length}개 / 전체 {memberships.length}개</p>
     </div>
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
