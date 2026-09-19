@@ -43,23 +43,67 @@ const reportWorker = reportEnabled ? spawn(process.execPath, [reportScript], { s
 console.log(quickWorker ? "   Quick Analysis: Codex worker started." : "   Quick Analysis: worker disabled.");
 console.log(reportWorker ? "   Final Report: Codex worker started.\n" : "   Final Report: worker disabled.\n");
 
-function stopChildren(signal) {
-  if (!child.killed) child.kill(signal);
-  if (quickWorker && !quickWorker.killed) quickWorker.kill(signal);
-  if (reportWorker && !reportWorker.killed) reportWorker.kill(signal);
+const managedChildren = [child, quickWorker, reportWorker].filter(Boolean);
+const shutdownTimeoutMs = 5_000;
+let shuttingDown = false;
+
+function isRunning(processHandle) {
+  return processHandle.exitCode === null && processHandle.signalCode === null;
 }
-for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stopChildren(signal));
+
+function signalChild(processHandle, signal) {
+  if (!isRunning(processHandle)) return;
+  try {
+    processHandle.kill(signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+function waitForExit(processHandle, timeoutMs) {
+  if (!isRunning(processHandle)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    processHandle.once("exit", () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+}
+
+async function stopChildren(signal) {
+  const running = managedChildren.filter(isRunning);
+  for (const processHandle of running) signalChild(processHandle, signal);
+  const stopped = await Promise.all(running.map((processHandle) => waitForExit(processHandle, shutdownTimeoutMs)));
+  const remaining = running.filter((_, index) => !stopped[index] && isRunning(running[index]));
+  for (const processHandle of remaining) signalChild(processHandle, "SIGKILL");
+  if (remaining.length) {
+    await Promise.all(remaining.map((processHandle) => waitForExit(processHandle, shutdownTimeoutMs)));
+  }
+}
+
+async function shutdown(signal, exitCode) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    await stopChildren(signal);
+  } finally {
+    process.exit(exitCode);
+  }
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => void shutdown(signal, 0));
+}
 
 quickWorker?.on("exit", (code, signal) => {
-  if (!child.killed && code !== 0) console.error(`[quick-analysis] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
+  if (!shuttingDown && code !== 0) console.error(`[quick-analysis] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
 });
 reportWorker?.on("exit", (code, signal) => {
-  if (!child.killed && code !== 0) console.error(`[final-report] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
+  if (!shuttingDown && code !== 0) console.error(`[final-report] worker stopped unexpectedly (code=${code ?? "?"}, signal=${signal ?? "none"}).`);
 });
 
 child.on("exit", (code, signal) => {
-  if (quickWorker && !quickWorker.killed) quickWorker.kill("SIGTERM");
-  if (reportWorker && !reportWorker.killed) reportWorker.kill("SIGTERM");
-  if (signal) process.kill(process.pid, signal);
-  process.exit(code ?? 0);
+  if (shuttingDown) return;
+  void shutdown("SIGTERM", code ?? (signal ? 1 : 0));
 });
