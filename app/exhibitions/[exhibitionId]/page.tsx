@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ExhibitionCompanySearch } from "@/components/exhibition-company-search";
 
 export const dynamic = "force-dynamic";
 
@@ -76,18 +77,12 @@ export default async function ExhibitionIndexPage({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          {memberships.map((membership) => {
-            const participation = membership.company.exhibitions[0];
-            return <Link href={`/exhibitions/${exhibitionId}/indexes/${selectedIndex.id}/companies/${membership.company.id}`} key={membership.id} className="paper-card flex min-h-52 flex-col p-5 transition hover:border-orange focus-visible:border-orange">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-lg font-extrabold">{membership.company.name}</h3>{membership.company.nameEn && <p className="mt-1 truncate text-xs text-secondary">{membership.company.nameEn}</p>}</div><span className="shrink-0 rounded-full bg-orange px-3 py-1.5 text-xs font-extrabold text-ink">{participation?.booth || "부스 미정"}</span></div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-mint px-2.5 py-1.5">{participation?.industry || "산업 미분류"}</span>{participation?.category && <span className="rounded-full bg-page px-2.5 py-1.5 text-secondary">{participation.category}</span>}</div>
-              <p className="mt-4 line-clamp-2 text-sm font-semibold">{membership.company.flagshipProduct || membership.company.companySummary || "대표 제품 정보가 없습니다."}</p>
-              <div className="mt-auto border-t border-ui pt-4"><p className="line-clamp-2 text-xs leading-5 text-secondary">{membership.reason || "직접 추가한 기업"}</p><span className="mt-2 inline-block text-[11px] font-bold text-orange">기업 카드 보기 →</span></div>
-            </Link>;
-          })}
-          {!memberships.length && <div className="paper-card p-6 xl:col-span-2"><p className="font-extrabold">아직 담긴 기업이 없습니다.</p><p className="mt-2 text-sm text-secondary">Personal Index는 membership API로 기업을 추가할 수 있습니다.</p></div>}
-        </div>
+        {selectedIndex && <ExhibitionCompanySearch
+          key={selectedIndex.id}
+          exhibitionId={exhibitionId}
+          indexId={selectedIndex.id}
+          memberships={memberships.map(({ id, reason, company }) => ({ id, reason, company }))}
+        />}
       </section>
     </div>}
   </div>;
