@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --import tsx --test tests/*.test.ts",
     "dev": "node scripts/gatherly-server.mjs dev",
     "dev:raw": "next dev",
     "build": "next build --webpack",
@@ -21,7 +21,9 @@
     "worker:final-report": "node scripts/gatherly-final-report-worker.mjs",
     "bot:status": "tsx scripts/gatherly-status-bot/index.ts",
     "bot:status:check": "tsx scripts/gatherly-status-bot/check.ts",
-    "bot:status:dev": "tsx watch scripts/gatherly-status-bot/index.ts"
+    "bot:status:dev": "tsx watch scripts/gatherly-status-bot/index.ts",
+    "test:legacy": "python3 scripts/tests/legacy_readonly.py",
+    "build:vercel": "prisma generate && next build --webpack"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +32,8 @@
   "private": "true",
   "dependencies": {
     "@prisma/client": "^6.19.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.41.0",
     "next": "^16.3.4",
@@ -38,12 +42,14 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
+    "fake-indexeddb": "6.2.6",
     "prisma": "^6.19.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",

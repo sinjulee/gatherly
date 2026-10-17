@@ -21,3 +21,17 @@ public/fonts/*.{woff,woff2,ttf,otf}
 tsconfig.tsbuildinfo
 .DS_Store
 prisma/*.backup*
+
+# Local agent state and all real environment variants
+.omc/
+.agents/
+.codex/
+.env*
+!.env.example
+!docs/gatherly-2.0/.env*.example
+prisma/*.db-*
+
+# Internal source assets stay local; never include in a GitHub candidate.
+docs/gatherly-2.0/v0.5_assets/
+.vercel/
+docs/gatherly-2.0/booth-mapping-review.json

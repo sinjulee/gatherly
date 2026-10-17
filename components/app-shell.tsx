@@ -32,8 +32,9 @@ function MiniCalendar({ mobile = false }: { mobile?: boolean }) {
   return calendar;
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, cloud = false }: { children: React.ReactNode; cloud?: boolean }) {
   const pathname = usePathname();
+  if (cloud) return <div className="min-h-screen bg-page"><nav className="flex gap-4 border-b border-ui p-4 text-sm" aria-label="Gatherly 2.0 메뉴"><Link className="flex min-h-12 items-center" href="/v2">Gatherly 2.0</Link><Link className="flex min-h-12 items-center" href="/phase-one">로컬 기능 미리보기</Link></nav><main>{children}</main></div>;
   const isActive = (href: string) => href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   return <div className="min-h-screen bg-page lg:flex">
     <aside className="hidden w-[274px] shrink-0 flex-col bg-ink px-6 py-7 text-white lg:flex">

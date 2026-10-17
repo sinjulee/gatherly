@@ -1,0 +1,7 @@
+import type { Geometry, Hotspot, Exhibitor } from "./contracts";
+export function validGeometry(g: Geometry) { return Object.values(g).every(Number.isFinite) && g.x >= 0 && g.y >= 0 && g.width > 0 && g.height > 0 && g.x + g.width <= 1 && g.y + g.height <= 1; }
+export function validHotspot(h: Hotspot, exhibitor: Exhibitor | undefined, version: string) { return !!exhibitor && validGeometry(h.geometry) && h.exhibitionId === exhibitor.exhibitionId && h.exhibitorId === exhibitor.id && h.mapVersion === version; }
+export function isTap(start: { x: number; y: number }, end: { x: number; y: number }, scrolled: boolean) { return !scrolled && Math.hypot(end.x - start.x, end.y - start.y) <= 8; }
+export function overlay(g: Geometry) { return { left: `${g.x * 100}%`, top: `${g.y * 100}%`, width: `${g.width * 100}%`, height: `${g.height * 100}%` }; }
+export const demoExhibitors: Exhibitor[] = [1, 2, 3].map(n => ({ id: `test-exhibitor-${n}`, companyId: `test-company-${n}`, exhibitionId: "test-esg", name: `테스트 기업 ${n} · 미검증`, booth: null, summary: "선택·사진·녹음·메모 동작 확인용 가상 기업입니다. 실제 부스 및 공식 기업과 연결되지 않았습니다.", sourceId: "synthetic-fixture", review: "DRAFT" }));
+export const demoHotspots: Hotspot[] = demoExhibitors.slice(0, 2).map((e, i) => ({ id: `test-hotspot-${i}`, exhibitionId: e.exhibitionId, exhibitorId: e.id, mapVersion: "reference-v1", review: "DRAFT", geometry: { x: .17 + i * .35, y: .42, width: .10, height: .13 } }));
