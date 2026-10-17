@@ -1,7 +1,8 @@
 import { serverClient, verifiedUser, loginDestination } from '@/lib/gatherly-2/auth/server';
-import { failure, IntegrationError, origin } from '@/lib/gatherly-2/integration/config';
+import { failure, IntegrationError, origin, requireAppOrigin } from '@/lib/gatherly-2/integration/config';
 export async function GET(request: Request) {
   try {
+    requireAppOrigin(request);
     const code = new URL(request.url).searchParams.get('code');
     if (!code) throw new IntegrationError('UNAUTHORIZED', 401);
     const client = await serverClient();

@@ -19,6 +19,10 @@ export function origin() {
 export function sameOrigin(request: Request, expected = origin()) {
   if (request.headers.get('origin') !== expected) throw new IntegrationError('FORBIDDEN', 403);
 }
+/** OAuth cookies and the code exchange must stay on the configured app host. */
+export function requireAppOrigin(request: Request, expected = origin()) {
+  if (new URL(request.url).origin !== expected) throw new IntegrationError('FORBIDDEN', 403);
+}
 export function allowedUser(id: string, env: Record<string, string | undefined> = process.env) {
   if (!(env.GATHERLY_V2_ALLOWED_USER_IDS ?? '').split(',').map(x => x.trim()).includes(id)) throw new IntegrationError('FORBIDDEN', 403);
 }

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cloudRoute, isVercel, legacyMapAsset } from './lib/gatherly-2/integration/platform';
-import { enabled, required } from './lib/gatherly-2/integration/config';
+import { enabled, required, origin } from './lib/gatherly-2/integration/config';
 export async function proxy(request: NextRequest) {
   if (legacyMapAsset(request.nextUrl.pathname)) return NextResponse.json({ error: 'PRIVATE_ASSET' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
   if (isVercel()) {
@@ -12,6 +12,11 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   response.headers.set('Cache-Control', 'private, no-store');
   if (!enabled() || !(request.nextUrl.pathname === '/phase-one' || request.nextUrl.pathname === '/v2' || request.nextUrl.pathname.startsWith('/v2/') || request.nextUrl.pathname.startsWith('/api/v2/'))) return response;
+  // Start on the callback's host before creating host-bound PKCE/session cookies.
+  // Never forward OAuth codes, arbitrary next URLs, or POST bodies across origins.
+  if (['GET', 'HEAD'].includes(request.method) && ['/v2', '/v2/auth-complete'].includes(request.nextUrl.pathname) && request.nextUrl.origin !== origin()) {
+    return NextResponse.redirect(new URL('/v2', origin()), { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
+  }
   const client = createServerClient(required('NEXT_PUBLIC_SUPABASE_URL'), required('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'), {
     cookies: { getAll: () => request.cookies.getAll(), setAll: values => {
       for (const { name, value } of values) request.cookies.set(name, value);
