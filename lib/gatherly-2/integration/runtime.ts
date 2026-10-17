@@ -22,12 +22,14 @@ export function requireWrites() { requireEnabled(); if (process.env.GATHERLY_V2_
 /** Consent persists tokens only; never exposes a general Google file operation callback. */
 export async function completeGoogleConsent(userId: string, params: URLSearchParams) {
   requireConsent();
-  await vault().locked(userId, async (state, save) => {
+  return vault().locked(userId, async (state, save) => {
     const verifier = consumeState(state, params.get('state') ?? '');
     await save();
+    if (params.get('error') === 'access_denied') return 'declined' as const;
     const code = params.get('code');
     if (!code || params.has('error')) throw new IntegrationError('REAUTH', 401);
     await new GoogleApi(googleConfig(), state, save).exchange(code, verifier);
+    return 'connected' as const;
   });
 }
 export async function withGoogle<T>(userId: string, action: (api: GoogleApi, state: import('./vault').VaultData, save: () => Promise<void>) => Promise<T>) {

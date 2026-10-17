@@ -15,6 +15,7 @@ export default async function AuthCompletePage() {
     <p className="my-4">아래 UID는 현재 로그인한 본인의 식별자입니다. 인증만으로 관리자 또는 내부 자료 접근 권한이 부여되지는 않습니다.</p>
     <dl><dt className="font-bold">내 UID</dt><dd className="my-2 break-all font-mono">{identity.id}</dd></dl>
     <p className="my-4">운영자에게 승인된 비공개 경로로 전달해 주세요. UUID 등록 전에는 지도·카탈로그·개인 자료를 이용할 수 없습니다.</p>
+    <a href="/v2" className="my-4 inline-flex min-h-12 items-center rounded-xl bg-[#173e32] px-4 py-3 text-white">Gatherly 연결 화면으로 이동</a>
     <form action="/api/v2/auth/logout" method="post"><button className="min-h-12 rounded-xl border p-3">로그아웃</button></form>
   </main>;
 }

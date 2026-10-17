@@ -19,7 +19,10 @@ export class GoogleApi {
   constructor(private config: GoogleConfig, private state: VaultData, private save: () => Promise<void>, private transport: Transport = fetch, private now = Date.now) {}
   private async token(values: Record<string, string>) {
     const response = await this.transport('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: this.config.clientId, client_secret: this.config.clientSecret, ...values }), signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw new IntegrationError(response.status >= 500 ? 'RETRY' : 'REAUTH', response.status >= 500 ? 503 : 401);
+    if (!response.ok) {
+      const retryable = response.status === 429 || response.status >= 500;
+      throw new IntegrationError(retryable ? 'RETRY' : 'REAUTH', retryable ? 503 : 401);
+    }
     const result = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
     if (!result.access_token || !result.expires_in) throw new IntegrationError('REAUTH', 401);
     return result;
@@ -43,7 +46,9 @@ export class GoogleApi {
     if (!force && current.expiresAt > this.now() + 60_000) return current.accessToken;
     const next = await this.token({ grant_type: 'refresh_token', refresh_token: current.refreshToken });
     this.state.oauth = { refreshToken: next.refresh_token ?? current.refreshToken, accessToken: next.access_token!, expiresAt: this.now() + next.expires_in! * 1000 };
-    await this.save(); return next.access_token!;
+    try { await this.save(); }
+    catch (error) { this.state.oauth = current; throw error; }
+    return next.access_token!;
   }
   async request(url: string, init: RequestInit = {}, retry = true): Promise<Response> {
     const target = new URL(url);

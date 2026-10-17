@@ -32,7 +32,9 @@ export class SupabaseVault {
       };
       return await action(state, save);
     } finally {
-      await this.rpc.call('g2_vault_release', { p_environment: this.namespace, p_user: userId, p_token: token });
+      const released = await this.rpc.call('g2_vault_release', { p_environment: this.namespace, p_user: userId, p_token: token });
+      // Expired/stale workers must not report successful completion after losing the lease.
+      if (released !== true) throw new IntegrationError('RETRY', 503);
     }
   }
 }
