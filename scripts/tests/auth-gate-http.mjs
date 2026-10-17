@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
+import { createHash } from 'node:crypto';
 
 const source = process.env.AUTH_GATE_BUILD_SOURCE;
 assert(source && path.resolve(source) !== process.cwd(), 'An isolated build is required');
@@ -17,10 +18,23 @@ const jwt = id => ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub: id,
 const tokens = { [approved]: jwt(approved), [denied]: jwt(denied) };
 const cookie = (id, claim = id) => `sb-127-auth-token=base64-${Buffer.from(JSON.stringify({ access_token: tokens[id], refresh_token: 'fixture', expires_at: Math.floor(Date.now()/1000)+3600, user: { id: claim, user_metadata: { is_admin: true } } })).toString('base64url')}`;
 let reads = 0;
-const fixture = createServer((request, response) => {
+let expectedChallenge;
+let exchanges = 0;
+const fixture = createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json');
   const id = Object.keys(tokens).find(id => request.headers.authorization === `Bearer ${tokens[id]}`);
-  if (request.url === '/auth/v1/user') {
+  if (request.url === '/auth/v1/token?grant_type=pkce') {
+    let raw = '';
+    for await (const chunk of request) raw += chunk;
+    const body = JSON.parse(raw);
+    const valid = body.auth_code === 'fixture-login-code' && typeof body.code_verifier === 'string'
+      && createHash('sha256').update(body.code_verifier).digest('base64url') === expectedChallenge;
+    exchanges++;
+    response.statusCode = valid ? 200 : 400;
+    response.end(JSON.stringify(valid
+      ? { access_token: tokens[approved], refresh_token: 'fixture-refresh', expires_in: 3600, token_type: 'bearer', user: { id: approved, aud: 'authenticated' } }
+      : { code: 'bad_code_verifier', message: 'fixture' }));
+  } else if (request.url === '/auth/v1/user') {
     response.statusCode = id ? 200 : 401;
     response.end(JSON.stringify(id ? { id, aud: 'authenticated', is_anonymous: false, user_metadata: { is_admin: true } } : { message: 'unauthorized' }));
   } else if (request.url?.startsWith('/rest/v1/') && request.method === 'GET' && id === approved) {
@@ -99,6 +113,50 @@ try {
   assert(html.includes('Gatherly 연결 화면으로 이동'));
   await status('/phase-one', 307, cookie(denied));
   for (const route of ['/api/reports', '/api/materials', '/docs/gatherly-2.0/v0.5_assets/ESG_2026_Official_BoothMap_TitleRemoved_Reference.png']) await status(route, 404, cookie(approved));
+  // Fresh-browser lifecycle through real Next handlers, not a pre-made auth cookie.
+  const started = await status('/api/v2/auth/login', 303, undefined, 'POST');
+  assert.equal(started.headers.get('x-gatherly-auth-stage'), 'oauth_redirect');
+  assert.match(started.headers.get('cache-control'), /no-store/);
+  const authorize = new URL(started.headers.get('location'));
+  assert.equal(authorize.searchParams.get('redirect_to'), `${base}/api/v2/auth/callback`);
+  expectedChallenge = authorize.searchParams.get('code_challenge');
+  assert(expectedChallenge);
+  const pending = started.headers.getSetCookie();
+  assert(pending.some(value => value.includes('code-verifier') && /SameSite=lax/i.test(value)));
+  assert(pending.every(value => /Path=\//i.test(value) && !/Domain=/i.test(value)));
+  const missing = await status('/api/v2/auth/callback?code=fixture-login-code', 401);
+  assert.deepEqual(await missing.json(), { error: 'UNAUTHORIZED', stage: 'session_exchange', reason: 'PKCE_VERIFIER_MISSING' });
+  assert.equal(exchanges, 0, 'Missing verifier must fail before the token endpoint');
+  const pendingCookie = pending.map(value => value.split(';')[0]).join('; ');
+  const completed = await fetch(`${base}/api/v2/auth/callback?code=fixture-login-code`, {
+    redirect: 'manual', headers: { cookie: pendingCookie, 'sec-fetch-site': 'cross-site',
+      'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' },
+  });
+  assert.equal(completed.status, 303); checks++;
+  assert.equal(completed.headers.get('x-gatherly-auth-result'), 'OK');
+  assert.equal(completed.headers.get('location'), `${base}/v2/auth-complete`);
+  assert.equal(exchanges, 1);
+  const providerDenied = await status('/api/v2/auth/callback?error=fixture&error_code=bad_oauth_state&error_description=private-fixture', 401);
+  assert.equal(providerDenied.headers.get('x-gatherly-auth-result'), 'OAUTH_STATE_REPORTED');
+  assert(!(await providerDenied.text()).includes('private-fixture'));
+  await status('/api/v2/auth/login', 405);
+  for (const origin of [undefined, 'null', 'https://evil.invalid']) {
+    const rejected = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', redirect: 'manual',
+      headers: { referer: `${base}/v2`, 'sec-fetch-site': 'same-origin', ...(origin ? { origin } : {}) } });
+    assert.equal(rejected.status, 403); checks++;
+    assert.equal(rejected.headers.get('x-gatherly-auth-stage'), 'login_origin');
+    assert.equal(rejected.headers.has('set-cookie'), false);
+  }
+  const completedCookies = completed.headers.getSetCookie();
+  assert(completedCookies.some(value => value.includes('code-verifier') && /Max-Age=0/i.test(value)));
+  const sessionCookie = completedCookies.filter(value => !/Max-Age=0/i.test(value)).map(value => value.split(';')[0]).join('; ');
+  assert(sessionCookie);
+  await status('/v2/auth-complete', 200, sessionCookie);
+  const freshPage = await status('/v2', 200, sessionCookie);
+  assert.match(await freshPage.text(), /Google Drive·Sheets 연결/);
+  const replay = await status('/api/v2/auth/callback?code=fixture-login-code', 401, sessionCookie);
+  assert.equal((await replay.json()).reason, 'PKCE_VERIFIER_MISSING');
+  assert.equal(exchanges, 1);
   console.log(JSON.stringify({ result: 'PASS', httpChecks: checks, consentUIEnabled, actualGoogleWrites: 0, fixtureOnly: true }));
 } finally {
   server.kill('SIGTERM');

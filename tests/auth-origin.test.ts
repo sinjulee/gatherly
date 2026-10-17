@@ -41,11 +41,24 @@ test('login keeps CSRF and canonical-host checks; disabled integration is not an
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { error: 'FORBIDDEN' });
     assert.equal(response.headers.has('location'), false);
+    assert.equal(response.headers.get('x-gatherly-auth-stage'), 'login_origin');
   }
   process.env.GATHERLY_V2_INTEGRATION_ENABLED = 'false';
   const response = await login(new Request(`${canonical}/api/v2/auth/login`, { method: 'POST', headers: { origin: canonical } }));
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'DISABLED' });
+  assert.equal(response.headers.get('x-gatherly-auth-stage'), 'login_client');
+}));
+
+test('login does not trust Referer or Fetch Metadata as a substitute for Origin', () => configured(async () => {
+  for (const origin of [undefined, 'null', 'https://evil.invalid']) {
+    const response = await login(new Request(`${canonical}/api/v2/auth/login`, {
+      method: 'POST', headers: { referer: `${canonical}/v2`, 'sec-fetch-site': 'same-origin', ...(origin ? { origin } : {}) },
+    }));
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('x-gatherly-auth-stage'), 'login_origin');
+    assert.equal(response.headers.has('set-cookie'), false);
+  }
 }));
 
 test('callback refuses wrong host without forwarding code and rejects missing code on canonical host', () => configured(async () => {
