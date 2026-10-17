@@ -1,0 +1,27 @@
+/* V2 only: keep legacy layouts and local data flows unchanged. */
+.v2-mobile {
+  min-height: 100dvh;
+  background: #f7f4e9;
+  color: #173e32;
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  overflow-wrap: anywhere;
+}
+.v2-shell { width: 100%; max-width: 48rem; margin-inline: auto; padding: 1.5rem 1rem; display: grid; gap: 1.5rem; }
+.v2-card { min-width: 0; padding: 1.25rem; border: 1px solid #173e3233; border-radius: 1.25rem; background: #fffdf5; display: grid; gap: 1rem; }
+.v2-card p { line-height: 1.75; }
+.v2-actions { display: grid; gap: 1rem; width: 100%; min-width: 0; }
+.v2-button { display: flex; align-items: center; justify-content: center; min-height: 48px; width: 100%; padding: .875rem 1rem; border: 1px solid #173e324d; border-radius: .75rem; text-align: center; line-height: 1.5; white-space: normal; }
+.v2-button-primary { background: #173e32; color: white; }
+.v2-status { display: block; padding: .75rem 1rem; border-radius: .75rem; background: #e4eee6; font-weight: 600; }
+.v2-mobile [aria-label="기업 기록 도구"] { display: grid; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.v2-mobile [aria-label="기업 기록 도구"] button { min-width: 0; min-height: 48px; }
+.v2-mobile dialog { padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)); }
+.v2-mobile dialog input, .v2-mobile dialog textarea { font-size: 16px; }
+.v2-mobile dialog > div:last-child { gap: 1rem; }
+.v2-mobile button { min-height: 48px; }
+.v2-mobile audio { max-width: 100%; }
+@media (min-width: 640px) { .v2-shell { padding: 2rem; } }
+
+.v2-mobile button:disabled { opacity: .5; cursor: not-allowed; }

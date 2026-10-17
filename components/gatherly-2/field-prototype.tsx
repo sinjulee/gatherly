@@ -29,7 +29,7 @@ function MediaPreview({ item }: { item: SyncItem }) {
   return item.blob?.type.startsWith("image/") ? <img ref={picture} alt={item.title} width={160} height={120} className="h-28 w-40 rounded-lg object-contain" /> : <audio ref={audio} controls className="max-w-full" />;
 }
 export type ConnectedField = { userId: string; fieldDayId: string; exhibitors: Exhibitor[]; hotspots: Hotspot[]; sync: (workspace: BrowserWorkspace) => Promise<string> };
-export function FieldPrototype({ connected, localUserId, namespace, collectionTest = false }: { connected?: ConnectedField; localUserId?: string; namespace: string; collectionTest?: boolean }) {
+export function FieldPrototype({ connected, localUserId, namespace, collectionTest = false, remoteTest = false }: { connected?: ConnectedField; localUserId?: string; namespace: string; collectionTest?: boolean; remoteTest?: boolean }) {
   const exhibitors = collectionTest ? [{ ...demoExhibitors[0], id: 'storage-test-company', name: '임시 테스트 기업', summary: '실제 행사·기업 ID가 없는 로컬 수집 테스트입니다. 공식 데이터가 아닙니다.' }] : connected?.exhibitors ?? demoExhibitors;
   const hotspots = connected?.hotspots ?? demoHotspots;
   const userId = connected?.userId ?? localUserId ?? USER;
@@ -38,7 +38,7 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
   const [query, setQuery] = useState("");
   const [note, setNote] = useState<{ context: Context; name: string } | null>(null);
   const [rows, setRows] = useState<SyncItem[]>([]);
-  const [notice, setNotice] = useState(connected ? "먼저 기기에 저장합니다. 개인 Google 파일 접근 동의 후 동기화해 주세요." : "사진·녹음·메모는 이 기기에만 저장됩니다. Google 동기화는 연결되지 않았습니다.");
+  const [notice, setNotice] = useState(remoteTest ? "기기에 저장한 뒤 아래 실저장 테스트에서 전송해 주세요." : connected ? "먼저 기기에 저장합니다. 개인 Google 파일 접근 동의 후 동기화해 주세요." : "사진·녹음·메모는 이 기기에만 저장됩니다. Google 동기화는 연결되지 않았습니다.");
   const online = useSyncExternalStore(subscribeNetwork, () => navigator.onLine, () => true);
   const [recording, setRecording] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -57,10 +57,12 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
   const refresh = () => storage.list(userId).then(setRows);
   useEffect(() => {
     alive.current = true;
+    const updated = () => { storage.list(userId).then(setRows).catch(() => setNotice("기기 보관 목록 조회 실패. 원본은 유지됩니다.")); };
+    window.addEventListener("gatherly-pilot-updated", updated);
     storage.list(userId).then(setRows).catch(() => setNotice("기기 저장소를 사용할 수 없습니다. 브라우저 권한/용량을 확인해 주세요."));
     const visibility = () => { if (document.hidden && recorder.current?.state === "recording") { recorder.current.stop(); setNotice("화면이 가려져 녹음을 중지하고 기기에 보관합니다."); } };
     document.addEventListener("visibilitychange", visibility);
-    return () => { alive.current = false; document.removeEventListener("visibilitychange", visibility); if (recorder.current?.state === "recording") recorder.current.stop(); stream.current?.getTracks().forEach(track => track.stop()); window.speechSynthesis?.cancel(); };
+    return () => { window.removeEventListener("gatherly-pilot-updated", updated); alive.current = false; document.removeEventListener("visibilitychange", visibility); if (recorder.current?.state === "recording") recorder.current.stop(); stream.current?.getTracks().forEach(track => track.stop()); window.speechSynthesis?.cancel(); };
   }, [userId, storage]);
   useEffect(() => {
     if (!recording) return;
@@ -123,7 +125,7 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
       </div>
     </div>
     </>}
-    {collectionTest && <p className="my-4 rounded-xl border p-4">임시 테스트 행사·기업 · 사진 1장, 녹음 1건, 메모 1건만 확인해 주세요. 원격 업로드는 차단되어 있으며 공식 지도는 불러오지 않습니다.</p>}
+    {collectionTest && <p className="my-4 rounded-xl border p-4">임시 테스트 행사·기업 · 사진 1장, 녹음 1건, 메모 1건만 확인해 주세요. {remoteTest ? "아래 실저장 테스트에서 별도로 업로드할 수 있습니다." : "원격 업로드는 차단되어 있습니다."} 공식 지도는 불러오지 않습니다.</p>}
     <section aria-labelledby="company-heading" className="mt-4 rounded-2xl border border-[#173e32]/20 bg-[#fffdf5] p-5">
       <div className="flex flex-wrap items-center justify-between gap-4"><h2 id="company-heading" className="text-xl font-bold">{selected.name}</h2><div className="flex gap-2" aria-label="기업 기록 도구">
         <button className={buttonStyle} aria-label="테스트 도슨트 재생 또는 중지" disabled={recording || requesting} onClick={speak}><Volume2 size={22} /></button>
@@ -147,8 +149,8 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
     <section className="mt-5"><label htmlFor="demo-search" className="font-semibold">기업 목록 · 지도 미등록 대안</label><input id="demo-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="테스트 기업 검색" className="my-2 min-h-12 w-full rounded-xl border bg-white p-3" /><div className="flex flex-wrap gap-2">{filtered.map(row => <button key={row.id} className={buttonStyle} onClick={() => select(row.id)}>{row.name}{!hotspots.some(h => h.exhibitorId === row.id) && " · 지도 미등록"}</button>)}{!filtered.length && <p>검색 결과가 없습니다.</p>}</div></section>
     <p role="status" className="my-5 rounded-xl bg-white p-4 text-sm">{notice}</p>
     {unsaved && <div className="mb-4 flex gap-3"><button className={buttonStyle} onClick={() => void store(unsaved)}>기기에 다시 저장</button><button className={buttonStyle} onClick={() => { if (!unsaved.blob) return; const url = URL.createObjectURL(unsaved.blob); const link = document.createElement("a"); link.href = url; link.download = unsaved.blob.type.startsWith("audio/mp4") ? "recording.m4a" : unsaved.blob.type.startsWith("audio/") ? "recording.webm" : unsaved.title; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>원본 다운로드</button></div>}
-    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="rounded-xl border bg-white p-3"><p className="font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : "로컬 대기"}</p>{collectionTest && <p className="my-2 text-xs">{row.state} · 전송 시도 {row.attempts}회 · 수정 {row.revision}회</p>}{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
-    {collectionTest && <div className="my-4 rounded-xl border p-4"><p>{online ? "온라인" : "오프라인 · 로컬 수집 가능"} · IndexedDB 로컬 저장 · 원격 전송 시도 0건 · 중복 업로드 방지를 위해 임시 ID 전송 차단</p><p>실패한 기기 저장은 같은 기록으로 다시 저장합니다. 원본과 기록 ID는 유지됩니다.</p><button disabled className={buttonStyle}>Google 원격 업로드 · 재시도 불가</button></div>}
+    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : remoteTest ? "로컬 원본은 유지됩니다. 실제 원격 상태는 아래에서 다시 조회해 주세요." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="rounded-xl border bg-white p-3"><p className="font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : row.state === "SYNCED" ? "원격 저장 확인 · 원본 보관" : row.state === "FAILED_RETRYABLE" ? "실패 · 아래에서 재시도" : "로컬 대기"}</p>{collectionTest && <p className="my-2 text-xs">{row.state} · 전송 시도 {row.attempts}회 · 수정 {row.revision}회</p>}{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
+    {collectionTest && !remoteTest && <div className="my-4 rounded-xl border p-4"><p>{online ? "온라인" : "오프라인 · 로컬 수집 가능"} · IndexedDB 로컬 저장 · 원격 업로드 비활성 · 로컬 원본 유지</p><p>실패한 기기 저장은 같은 기록으로 다시 저장합니다. 원본과 기록 ID는 유지됩니다.</p><button disabled className={buttonStyle}>Google 원격 업로드 · 재시도 불가</button></div>}
     {connected && <button className={buttonStyle} onClick={async () => { setNotice("개인 Google 저장 확인 중…"); try { setNotice(await connected.sync(storage)); await refresh(); } catch { setNotice("동기화 실패. 로컬 자료는 유지됩니다. 연결과 대기 상태를 확인해 주세요."); } }}>개인 Google 동기화 · 재시도</button>}
     {note && <NoteSheet workspace={storage} context={note.context} companyName={note.name} onClose={() => setNote(null)} onSaved={() => { void refresh(); setNotice(connected ? "메모를 기기에 저장했습니다. 개인 Google 동기화 버튼으로 전송해 주세요." : "메모를 기기에 저장했습니다. Sheets 동기화는 연결 전입니다."); }} />}
   </div>;

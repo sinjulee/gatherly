@@ -1,5 +1,5 @@
 export class IntegrationError extends Error {
-  constructor(public code: 'DISABLED' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'REAUTH' | 'RETRY' | 'CONFLICT' | 'INVALID', public status = 400) { super(code); }
+  constructor(public code: 'SHEET_PENDING' | 'LIMIT' | 'DISABLED' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'REAUTH' | 'RETRY' | 'CONFLICT' | 'INVALID', public status = 400) { super(code); }
 }
 export function enabled(env: Record<string, string | undefined> = process.env) { return env.GATHERLY_V2_INTEGRATION_ENABLED === 'true'; }
 export function required(name: string, env: Record<string, string | undefined> = process.env) {

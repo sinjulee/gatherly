@@ -2,8 +2,9 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import { mkdir, readFile, rename, unlink, rmdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { IntegrationError } from './config';
-export type Ledger = { hash: string; revision: number; row?: number; fileId?: string; uploadUrl?: string; media?: { size: number; mimeType: string; sha256: string }; done?: boolean };
+export type Ledger = { hash: string; revision: number; row?: number; fileId?: string; uploadUrl?: string; media?: { size: number; mimeType: string; sha256: string }; done?: boolean; driveVerified?: boolean };
 export type VaultData = {
+  pilot?: import('./pilot-storage').PilotData;
   oauth?: { refreshToken: string; accessToken: string; expiresAt: number };
   flow?: { state: string; verifier: string; expiresAt: number };
   resources: Record<string, { id?: string; pending?: boolean }>;

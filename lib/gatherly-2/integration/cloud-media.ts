@@ -32,6 +32,7 @@ export class CloudMediaStorage {
       const file = await this.api.json<{ ownedByMe: boolean; trashed: boolean; size: string; sha256Checksum?: string; appProperties?: { payloadHash?: string } }>(fileUrl);
       if (!file.sha256Checksum) throw new IntegrationError('RETRY', 503);
       if (!file.ownedByMe || file.trashed || Number(file.size) !== info.size || file.sha256Checksum !== info.sha256 || file.appProperties?.payloadHash !== hash) throw new IntegrationError('CONFLICT', 409);
+      ledger.driveVerified = true; await this.save();
       const result = await storage.sync(record, undefined, { fileId: ledger.fileId!, sha256: info.sha256, mimeType: info.mimeType });
       return { offset: info.size, done: true, driveFileId: result.driveFileId };
     };

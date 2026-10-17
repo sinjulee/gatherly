@@ -1,15 +1,16 @@
+import { requireWriteUser } from '@/lib/gatherly-2/integration/write-access';
 import { scopedOwner } from '@/lib/gatherly-2/integration/environment';
 import { isVercel } from '@/lib/gatherly-2/integration/platform';
 import { session } from '@/lib/gatherly-2/auth/server';
 import { failure, IntegrationError, sameOrigin, requireOwner } from '@/lib/gatherly-2/integration/config';
-import { withGoogle, requireWrites } from '@/lib/gatherly-2/integration/runtime';
+import { withGoogle, requireCatalogWrites } from '@/lib/gatherly-2/integration/runtime';
 import { GoogleStorage } from '@/lib/gatherly-2/integration/storage';
 import { parseRecord } from '@/lib/gatherly-2/integration/validation';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export async function POST(request: Request) {
   try {
-    sameOrigin(request); requireWrites(); const { user, client } = await session();
+    sameOrigin(request); requireCatalogWrites(); const { user, client } = await session(); requireWriteUser(user.id);
     if (Number(request.headers.get('content-length') ?? 0) > 26 * 1024 * 1024) throw new IntegrationError('INVALID', 413);
     const form = await request.formData();
     requireOwner(form.get('expectedUserId'), user.id);

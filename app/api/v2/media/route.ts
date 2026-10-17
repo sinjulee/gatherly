@@ -1,14 +1,15 @@
+import { requireWriteUser } from '@/lib/gatherly-2/integration/write-access';
 import { scopedOwner } from '@/lib/gatherly-2/integration/environment';
 import { session } from '@/lib/gatherly-2/auth/server';
 import { failure, IntegrationError, sameOrigin, requireOwner } from '@/lib/gatherly-2/integration/config';
-import { withGoogle, requireWrites } from '@/lib/gatherly-2/integration/runtime';
+import { withGoogle, requireCatalogWrites } from '@/lib/gatherly-2/integration/runtime';
 import { parseRecord } from '@/lib/gatherly-2/integration/validation';
 import { CloudMediaStorage, mediaInfo } from '@/lib/gatherly-2/integration/cloud-media';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export async function POST(request: Request) {
   try {
-    sameOrigin(request); requireWrites(); const { user, client } = await session();
+    sameOrigin(request); requireCatalogWrites(); const { user, client } = await session(); requireWriteUser(user.id);
     if (Number(request.headers.get('content-length') ?? 0) > 2 * 1024 * 1024) throw new IntegrationError('INVALID', 413);
     const form = await request.formData(); requireOwner(form.get('expectedUserId'), user.id);
     const record = parseRecord(JSON.parse(String(form.get('record'))));

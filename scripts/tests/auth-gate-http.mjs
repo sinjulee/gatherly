@@ -191,7 +191,12 @@ try {
   const replay = await status('/api/v2/auth/callback?code=fixture-login-code', 401, sessionCookie);
   assert.equal((await replay.json()).reason, 'PKCE_VERIFIER_MISSING');
   assert.equal(exchanges, 1);
+  for (const identity of [undefined, cookie(denied), cookie(approved)]) {
+    const remote = await status('/api/v2/storage-test', 503, identity, 'POST');
+    assert.deepEqual(await remote.json(), { error: 'DISABLED' });
+  }
   console.log(JSON.stringify({ result: 'PASS', httpChecks: checks, consentUIEnabled, actualGoogleWrites: 0, fixtureOnly: true }));
+  if (process.env.AUTH_GATE_MOBILE_UI === '1') await (await import('./v2-mobile-browser.mjs')).checkMobileUI(base, cookie(approved));
 } finally {
   server.kill('SIGTERM');
   if (server.exitCode === null) await once(server, 'exit');

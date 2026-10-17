@@ -1,3 +1,4 @@
+import { requireWriteUser } from './write-access';
 import { environment } from './environment';
 import { isVercel } from './platform';
 import { SupabaseVault, vaultRpc } from './supabase-vault';
@@ -19,6 +20,10 @@ export function vault() {
   return new FileVault(required('GATHERLY_V2_VAULT_DIR'), key);
 }
 export function requireWrites() { requireEnabled(); if (process.env.GATHERLY_V2_GOOGLE_WRITES_ENABLED !== 'true') throw new IntegrationError('DISABLED', 503); }
+export function requireCatalogWrites() {
+  requireWrites();
+  if (process.env.GATHERLY_V2_AUTH_ONLY === 'true') throw new IntegrationError('DISABLED', 503);
+}
 /** Consent persists tokens only; never exposes a general Google file operation callback. */
 export async function completeGoogleConsent(userId: string, params: URLSearchParams) {
   requireConsent();
@@ -33,6 +38,6 @@ export async function completeGoogleConsent(userId: string, params: URLSearchPar
   });
 }
 export async function withGoogle<T>(userId: string, action: (api: GoogleApi, state: import('./vault').VaultData, save: () => Promise<void>) => Promise<T>) {
-  requireWrites();
+  requireCatalogWrites(); requireWriteUser(userId);
   return vault().locked(userId, (state, save) => action(new GoogleApi(googleConfig(), state, save), state, save));
 }
