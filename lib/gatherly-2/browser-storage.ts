@@ -1,4 +1,5 @@
 import { contextKey, type Context, type Note, type SyncItem, type LocalSyncQueue } from "./contracts";
+import { pilotKind, type PilotKind } from "./pilot-ui";
 export type Draft = Context & { title: string; text: string };
 /** Separate database: never opens or upgrades legacy gatherly-upload-queue. */
 export class BrowserWorkspace implements LocalSyncQueue {
@@ -61,6 +62,38 @@ export class BrowserWorkspace implements LocalSyncQueue {
         else store.put(item, `transfer:${key}`);
       };
     });
+  }
+  async deletedPilotKinds(userId: string) {
+    return this.transaction<PilotKind[]>("readonly", (store, done) => {
+      const kinds: PilotKind[] = []; const request = store.openCursor();
+      request.onsuccess = () => { const cursor = request.result;
+        if (!cursor) { done(kinds); return; }
+        if (String(cursor.key).startsWith("pilot-deleted:") && cursor.value.userId === userId) kinds.push(cursor.value.kind);
+        cursor.continue();
+      };
+    });
+  }
+  /** Only the dedicated pilot UI uses this. No remote API and no legacy database. */
+  async deletePilotLocal(item: SyncItem, userId: string) {
+    if (item.userId !== userId || item.fieldDayId !== 'storage-test-event' || item.exhibitorId !== 'storage-test-company') throw new Error('다른 사용자 또는 행사 자료는 삭제할 수 없습니다.');
+    return this.transaction<string | undefined>("readwrite", (store, done) => {
+      const key = contextKey(item, item.id); const request = store.get(`queue:${key}`);
+      request.onsuccess = () => {
+        const current = request.result as SyncItem | undefined;
+        if (!current) { done(undefined); return; }
+        if (current.revision !== item.revision) { done('자료가 수정되었습니다. 목록을 다시 확인해 주세요.'); return; }
+        const transfer = store.get(`transfer:${key}`);
+        transfer.onsuccess = () => {
+          if (current.state !== 'SYNCED' && (transfer.result || current.attempts > 0 || current.state !== 'LOCAL_PENDING')) {
+            done('전송을 시도한 자료는 원격 저장 여부 확인 전 삭제할 수 없습니다. 같은 자료로 재시도해 주세요.'); return;
+          }
+          if (current.state === 'SYNCED') store.put({ userId, kind: pilotKind(current) }, `pilot-deleted:${key}`);
+          store.delete(`queue:${key}`); store.delete(`transfer:${key}`);
+          if (current.kind === 'NOTE') { store.delete(`note:${contextKey(current, 'note')}`); store.delete(`draft:${contextKey(current, 'note')}`); }
+          done(undefined);
+        };
+      };
+    }).then(error => { if (error) throw new Error(error); });
   }
   async list(userId: string) {
     return this.transaction<SyncItem[]>("readonly", (store, done) => {

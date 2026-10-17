@@ -25,3 +25,8 @@
 @media (min-width: 640px) { .v2-shell { padding: 2rem; } }
 
 .v2-mobile button:disabled { opacity: .5; cursor: not-allowed; }
+
+.v2-mobile button { touch-action: manipulation; }
+.v2-mobile button:not(:disabled) { cursor: pointer; }
+.v2-mobile button:focus-visible { outline: 3px solid #317558; outline-offset: 3px; }
+.v2-mobile [data-local-card] { scroll-margin-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); }

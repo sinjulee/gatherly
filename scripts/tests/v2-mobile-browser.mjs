@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-export async function checkMobileUI(base, sessionCookie) {
+export async function checkMobileUI(base, sessionCookie, pilot = false) {
   assert(base === 'http://localhost:3217');
   const profile = await mkdtemp(path.join(os.tmpdir(), 'gatherly-2e11-mobile-'));
   const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new','--disable-gpu','--disable-extensions','--disable-background-networking','--no-first-run','--no-default-browser-check',`--user-data-dir=${profile}`,'--remote-debugging-port=0','about:blank'], { stdio: ['ignore','ignore','pipe'] });
@@ -16,15 +16,21 @@ export async function checkMobileUI(base, sessionCookie) {
     const target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find(row => row.type === 'page');
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve,reject) => { socket.addEventListener('open',resolve,{once:true}); socket.addEventListener('error',reject,{once:true}); });
-    let sequence=0; const pending=new Map(), errors=[];
+    let sequence=0, uploads=0, acceptDelete=false; const pending=new Map(), errors=[];
     const command = (method,params={}) => new Promise((resolve,reject) => {
       const id=++sequence; const timer=setTimeout(()=>{pending.delete(id);reject(new Error('CDP timeout '+method));},15000);
       pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));
     });
     socket.addEventListener('message',event=>{
       const m=JSON.parse(event.data);
+      if(m.method==='Page.javascriptDialogOpening') void command('Page.handleJavaScriptDialog',{accept:acceptDelete});
       if(m.method==='Runtime.exceptionThrown') errors.push('browser exception');
       if(m.method==='Fetch.requestPaused') {
+        if(pilot && m.params.request.url===base+'/api/v2/storage-test') {
+          uploads++;
+          setTimeout(()=>void command('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({done:true,offset:0})).toString('base64')}),250);
+          return;
+        }
         const local=m.params.request.url.startsWith(base+'/') || /^(blob:|data:)/.test(m.params.request.url);
         void command(local?'Fetch.continueRequest':'Fetch.failRequest',local?{requestId:m.params.requestId}:{requestId:m.params.requestId,errorReason:'BlockedByClient'});
       }
@@ -33,6 +39,13 @@ export async function checkMobileUI(base, sessionCookie) {
     });
     const evaluate=async expression=>{const r=await command('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,'UI evaluation failed');return r.result.value;};
     const wait=async expression=>{for(let i=0;i<100;i++){if(await evaluate(expression))return;await pause(50);}throw new Error('UI condition timed out');};
+    const touch = async selector => {
+      const box=await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e || e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};})()`);
+      assert(box.hit,'Touch target covered');assert(box.w>=48&&box.h>=48);
+      await command('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x,y:box.y}]});
+      await command('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await pause(80);
+    };
+    await command('Emulation.setTouchEmulationEnabled',{enabled:true});
     await command('Runtime.enable');await command('Page.enable');await command('Network.enable');
     await command('Fetch.enable',{patterns:[{urlPattern:'*'}]});
     await command('Network.setCookie',{name:sessionCookie.slice(0,sessionCookie.indexOf('=')),value:sessionCookie.slice(sessionCookie.indexOf('=')+1),url:base,httpOnly:true,sameSite:'Lax'});
@@ -60,11 +73,41 @@ export async function checkMobileUI(base, sessionCookie) {
           assert(dialog.gap>=12);assert.equal(dialog.font,'16px');assert(dialog.padding>=20+(safeAreaEmulated?34:0));
           await evaluate("document.querySelector('dialog button').click()");await wait("!document.querySelector('dialog')");
         }
+        if(pilot && width===390 && route==='/v2/storage-test') {
+          await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('사진 없음')");
+          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));
+          await touch('[data-pilot-upload]');assert.equal(uploads,0);
+          const seed = async kinds => evaluate(`new Promise((resolve,reject)=>{
+            const request=indexedDB.open('gatherly-v2-production-storage-test',1);
+            request.onsuccess=()=>{const db=request.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records');
+              const ctx={userId:'00000000-0000-0000-0000-000000000001',fieldDayId:'storage-test-event',exhibitorId:'storage-test-company'};
+              for(const kind of ${JSON.stringify(kinds)}) {const id='mobile-'+kind;const row={...ctx,id,title:kind,kind:kind==='note'?'NOTE':'MEDIA',text:kind==='note'?'fixture':undefined,blob:kind==='note'?undefined:new Blob(['fixture'],{type:kind==='photo'?'image/png':'audio/mp4'}),state:'LOCAL_PENDING',revision:1,attempts:0,nextAttemptAt:0};store.put(row,'queue:'+JSON.stringify([ctx.userId,ctx.fieldDayId,ctx.exhibitorId,id]));}
+              tx.oncomplete=()=>{db.close();window.dispatchEvent(new Event('gatherly-pilot-updated'));resolve(true);};tx.onerror=reject;
+            };request.onerror=reject;
+          })`);
+          await seed(['photo']);await wait("document.querySelectorAll('[data-local-card]').length===1");
+          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled && document.querySelector('#pilot-upload-reasons').textContent.includes('녹음 없음') && document.querySelector('#pilot-upload-reasons').textContent.includes('메모 없음')"));
+          await touch('[aria-label="photo 로컬 삭제"]'); // cancel first
+          assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),1);
+          acceptDelete=true;await touch('[aria-label="photo 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===0");
+          await seed(['photo','audio','note']);await wait("!document.querySelector('[data-pilot-upload]').disabled");
+          await touch('[aria-label="note 로컬 삭제"]');await wait("document.querySelector('[data-pilot-upload]').disabled && document.querySelector('#pilot-upload-reasons').textContent.includes('메모 없음')");
+          await seed(['note']);await wait("!document.querySelector('[data-pilot-upload]').disabled");
+          await touch('[data-pilot-upload]');await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('업로드 또는')");
+          await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('이미 업로드 완료')");
+          assert.equal(uploads,3);assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));
+          await touch('[data-pilot-upload]');assert.equal(uploads,3);
+          assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),3);
+          assert(await evaluate("[...document.querySelectorAll('[data-local-card]')].every(e=>e.textContent.includes('원격 교체 불가'))"));
+          await touch('[aria-label="photo 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===2");
+          await seed(['photo']);await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('원격 교체')");
+          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));assert.equal(uploads,3);
+        }
         if(width===390){const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(path.join(profile,route.replaceAll('/','_')+'.png'),Buffer.from(shot.data,'base64'));}
         pages++;
       }
     }
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({mobileUI:'PASS',pages,widths:[320,375,390,430],safeAreaEmulated,engine:'Chrome mobile emulation; not iPhone Safari',artifacts:profile}));
+    console.log(JSON.stringify({mobileUI:'PASS',pilotTouch:pilot?'PASS':'NOT_RUN',mockUploads:uploads,pages,widths:[320,375,390,430],safeAreaEmulated,engine:'Chrome mobile emulation; not iPhone Safari',artifacts:profile}));
   } finally {socket?.close();chrome.kill('SIGTERM');}
 }

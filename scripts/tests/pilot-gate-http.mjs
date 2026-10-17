@@ -94,7 +94,7 @@ try {
   const ownerPage=await status('/v2/storage-test',200,cookie(approved));
   assert.match(await ownerPage.text(), /아래 실저장 테스트에서 별도로 업로드/);
   const otherPage=await status('/v2/storage-test',200,cookie(denied));
-  assert.match(await otherPage.text(), /원격 쓰기 비활성 또는 실증 대상 계정이 아닙니다/);
+  assert.match(await otherPage.text(), /서버 정책상 차단/);
   const form = new FormData(); form.set('expectedUserId',approved);form.set('action','status');
   const response=await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:form});
   assert.equal(response.status,200);assert.deepEqual(await response.json(),{states:{note:'NOT_UPLOADED',photo:'NOT_UPLOADED',audio:'NOT_UPLOADED'}});checks++;
@@ -103,5 +103,6 @@ try {
   assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:'https://evil.invalid',cookie:cookie(approved)},body:form})).status,403);checks++;
   for(const route of ['/api/v2/sync','/api/v2/media'])await status(route,503,cookie(approved),'POST');
   assert.equal(reads,0);assert.equal(vaultReads,1);
+  if(process.env.PILOT_TOUCH_UI==='1') await (await import('./v2-mobile-browser.mjs')).checkMobileUI(base,cookie(approved),true);
   console.log(JSON.stringify({pilotGate:'PASS',httpChecks:checks,actualGoogleWrites:0,fixtureOnly:true}));
 } finally {server.kill('SIGTERM');fixture.close();}

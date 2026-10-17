@@ -1,4 +1,5 @@
 import type { BrowserWorkspace } from '../browser-storage';
+import { pilotReadiness } from '../pilot-ui';
 import type { SyncItem } from '../contracts';
 const endpoint = '/api/v2/storage-test';
 const messages: Record<string, string> = { SHEET_PENDING: 'Drive 파일은 확인했지만 Sheets 반영은 미완료입니다. 같은 자료로 재시도하면 기존 파일을 재사용합니다.', DISABLED: '원격 저장이 비활성입니다.', FORBIDDEN: '이 계정은 쓰기 승인이 없습니다.', UNAUTHORIZED: '다시 로그인해 주세요.', REAUTH: 'Google 연결 또는 Drive·Sheets API 설정을 확인해 주세요.', LIMIT: '테스트 요청 한도에 도달했습니다. 운영자 확인이 필요합니다.', CONFLICT: '예약한 자료와 내용 또는 원격 기록이 다릅니다. 원본을 유지하고 확인해 주세요.', INVALID: '사진·녹음은 각각 5MiB 이하, 메모는 500자 이하로 준비해 주세요.', RETRY: '원격 저장 확인에 실패했습니다. 같은 기록으로 재시도해 주세요.' };
@@ -20,6 +21,11 @@ export async function syncPilot(workspace: BrowserWorkspace, userId: string, tra
     for (const row of rows) {
       const type = row.kind === 'NOTE' ? 'note' : row.blob?.type.startsWith('image/') ? 'photo' : 'audio';
       if (++count[type] > 1 || (row.blob && row.blob.size > 5 * 1024 * 1024)) throw new Error('사진·녹음·메모 각 1건만 준비해 주세요. 미디어는 각각 5MiB 이하입니다. 로컬 자료는 삭제하지 않았습니다.');
+    }
+    const readiness = pilotReadiness(rows, await workspace.deletedPilotKinds(userId), true, false);
+    if (!readiness.canUpload) {
+      if (readiness.reasons.length === 1 && readiness.reasons[0].startsWith('이미 업로드 완료')) return '이미 업로드 완료되어 재전송 불가합니다. 저장 결과 다시 조회를 이용해 주세요.';
+      throw new Error(readiness.reasons.join(' '));
     }
     let done = 0;
     for (const row of rows) {
