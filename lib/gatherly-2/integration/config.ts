@@ -8,6 +8,9 @@ export function required(name: string, env: Record<string, string | undefined> =
   return value;
 }
 export function requireEnabled() { if (!enabled()) throw new IntegrationError('DISABLED', 503); }
+export function requireConsent(env: Record<string, string | undefined> = process.env) {
+  if (!enabled(env) || env.GATHERLY_V2_GOOGLE_CONSENT_ENABLED !== 'true') throw new IntegrationError('DISABLED', 503);
+}
 export function origin() {
   const value = new URL(required('GATHERLY_V2_APP_ORIGIN'));
   if (value.protocol !== 'https:' && !(value.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(value.hostname))) throw new IntegrationError('DISABLED', 503);

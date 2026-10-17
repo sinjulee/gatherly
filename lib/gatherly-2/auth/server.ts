@@ -1,7 +1,7 @@
 import { environment, environmentUser } from '../integration/environment';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { IntegrationError, required, requireEnabled } from '../integration/config';
+import { IntegrationError, required, requireEnabled, enabled } from '../integration/config';
 export async function serverClient() {
   requireEnabled(); environment();
   const jar = await cookies();
@@ -16,6 +16,18 @@ export async function verifiedUser(auth: { getUser(): Promise<{ data: { user: { 
   const { data, error } = await auth.getUser();
   if (error || !data.user || data.user.is_anonymous) throw new IntegrationError('UNAUTHORIZED', 401);
   return data.user;
+}
+/** Authentication only: returns the caller's UID, never data access or an admin grant. */
+export async function ownLoginIdentity(auth: Parameters<typeof verifiedUser>[0], env: Record<string, string | undefined> = process.env) {
+  if (!enabled(env) || env.GATHERLY_V2_AUTH_ONLY !== 'true') throw new IntegrationError('DISABLED', 503);
+  environment(env);
+  return { id: (await verifiedUser(auth)).id };
+}
+export function loginDestination(userId: string, env: Record<string, string | undefined> = process.env) {
+  environment(env);
+  if (env.GATHERLY_V2_AUTH_ONLY === 'true') return '/v2/auth-complete';
+  environmentUser(userId, env);
+  return '/v2';
 }
 export async function session() {
   const client = await serverClient();
