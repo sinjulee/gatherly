@@ -29,7 +29,7 @@ export default async function V2Page({ searchParams }: { searchParams: Promise<{
     return <main className="p-8"><h1>Gatherly 2.0</h1><p>{login ? 'Google 로그인 후 개인 파일 접근에 별도로 동의할 수 있습니다.' : '승인 계정과 카탈로그 환경 설정을 확인해 주세요.'}</p><form action="/api/v2/auth/login" method="post"><button className={button}>Google 로그인</button></form></main>;
   }
   const { user, data, selected, exhibitors, hotspots } = result.data!;
-  const connection = <GoogleConnection consentEnabled={process.env.GATHERLY_V2_GOOGLE_CONSENT_ENABLED === 'true'} writesEnabled={process.env.GATHERLY_V2_GOOGLE_WRITES_ENABLED === 'true'} />;
+  const connection = <><a className={button} href="/v2/storage-test">내부 자료 수집 테스트</a><GoogleConnection consentEnabled={process.env.GATHERLY_V2_GOOGLE_CONSENT_ENABLED === 'true'} writesEnabled={process.env.GATHERLY_V2_GOOGLE_WRITES_ENABLED === 'true'} /></>;
   if ('authOnly' in result.data! && result.data.authOnly) return <main className="p-8"><h1>Google 로그인 확인 완료</h1><p>승인된 사용자입니다. 아래에서 개인 파일 접근에 별도로 동의할 수 있습니다.</p>{connection}<form action="/api/v2/auth/logout" method="post"><button className={button}>로그아웃</button></form></main>;
   return <main className="bg-[#f7f4e9] text-[#173e32]"><div className="mx-auto flex max-w-5xl flex-wrap gap-3 p-4">{connection}<form action="/api/v2/auth/logout" method="post"><button className={button}>로그아웃</button></form>{data?.map(e => <a className={button} key={e.id} href={`/v2?exhibition=${e.id}`}>{e.name}</a>)}</div>{exhibitors.length ? <ConnectedField namespace={environment()} chunkedMedia={isVercel()} userId={user.id} fieldDayId={selected!.id} exhibitors={exhibitors} hotspots={hotspots} /> : <p className="p-8">승인·발행된 참가기업이 없습니다. 미검증 기업과 좌표는 표시하지 않습니다.</p>}</main>;
 }

@@ -10,6 +10,30 @@ import { emptyVault } from '../lib/gatherly-2/integration/vault';
 const user = '00000000-0000-0000-0000-000000000001';
 const first = '00000000-0000-0000-0000-000000000002';
 const second = '00000000-0000-0000-0000-000000000003';
+
+test('consent tokens survive a fresh vault instance encrypted and isolated from preview', async () => {
+  const { db, rpc } = await setup();
+  const key = randomBytes(32);
+  try {
+    await new SupabaseVault(rpc, key, 'production').locked(user, async (state, save) => {
+      state.oauth = { accessToken: 'fixture-private-access', refreshToken: 'fixture-private-refresh', expiresAt: 1 };
+      await save();
+    });
+    const stored = await db.query<{ ciphertext: string; lock_token: string | null }>(
+      "select ciphertext, lock_token from g2_private.vault where environment='production' and user_id=$1", [user]);
+    assert(stored.rows[0].ciphertext);
+    assert(!stored.rows[0].ciphertext.includes('fixture-private'));
+    assert.equal(stored.rows[0].lock_token, null);
+    await new SupabaseVault(rpc, key, 'production').locked(user, async state => {
+      assert.equal(state.oauth?.refreshToken, 'fixture-private-refresh');
+      // An expired access token does not erase the persisted refresh credential.
+      assert.equal(state.oauth?.expiresAt, 1);
+    });
+    await new SupabaseVault(rpc, key, 'preview').locked(user, async state => {
+      assert.equal(state.oauth, undefined);
+    });
+  } finally { await db.close(); }
+});
 async function setup() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create role outsider;

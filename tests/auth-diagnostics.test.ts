@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { authFailure, exchangeFailureReason } from '../lib/gatherly-2/auth/diagnostics';
 import { IntegrationError } from '../lib/gatherly-2/integration/config';
+import { GET as callback } from '../app/api/v2/auth/callback/route';
 
 test('OAuth failure diagnostics expose fixed categories only, never provider data', async () => {
   for (const [code, reason] of [
@@ -51,4 +52,34 @@ test('diagnostics retain origin, authorization and unexpected-error status bound
   const response = authFailure(new Error('private-provider-payload'), 'user_verification');
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'RETRY', stage: 'user_verification' });
+});
+
+test('provider error callback rejects before client creation and never echoes OAuth fields', async () => {
+  const before = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    process.env.GATHERLY_V2_APP_ORIGIN = 'https://fixture.invalid';
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    globalThis.fetch = async () => { calls++; throw new Error('No provider request permitted'); };
+    for (const params of [
+      new URLSearchParams({ error: 'access_denied' }),
+      new URLSearchParams({ error_code: 'unexpected_failure' }),
+      new URLSearchParams({ error: '' }),
+      new URLSearchParams({ error: 'private-provider-value', error_code: 'private-provider-value', error_description: 'private-provider-value', code: 'private-provider-value', state: 'private-provider-value' }),
+    ]) {
+      const response = await callback(new Request(`https://fixture.invalid/api/v2/auth/callback?${params}`));
+      assert.equal(response.status, 401);
+      assert.equal(response.headers.get('x-gatherly-auth-stage'), 'provider_callback');
+      assert.equal(response.headers.get('x-gatherly-auth-result'), 'PROVIDER_ERROR_REPORTED');
+      assert.deepEqual(await response.json(), { error: 'UNAUTHORIZED', stage: 'provider_callback', reason: 'PROVIDER_ERROR_REPORTED' });
+      assert(!JSON.stringify([...response.headers]).includes('private-provider-value'));
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of Object.keys(process.env)) if (!(key in before)) delete process.env[key];
+    Object.assign(process.env, before);
+  }
 });

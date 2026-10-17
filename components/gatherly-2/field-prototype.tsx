@@ -1,13 +1,17 @@
 "use client";
 import Image from "next/image";
 import { Camera, Mic, Volume2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { demoExhibitors, demoHotspots, isTap, overlay, validHotspot } from "@/lib/gatherly-2/map";
 import { BrowserWorkspace } from "@/lib/gatherly-2/browser-storage";
 import type { Context, SyncItem, Exhibitor, Hotspot } from "@/lib/gatherly-2/contracts";
 import { NoteSheet } from "./note-sheet";
 
+function subscribeNetwork(update: () => void) {
+  window.addEventListener("online", update); window.addEventListener("offline", update);
+  return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+}
 const USER = "phase1-local-demo";
 const buttonStyle = "flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-[#173e32]/30 px-3 disabled:opacity-40";
 function MediaPreview({ item }: { item: SyncItem }) {
@@ -25,8 +29,8 @@ function MediaPreview({ item }: { item: SyncItem }) {
   return item.blob?.type.startsWith("image/") ? <img ref={picture} alt={item.title} width={160} height={120} className="h-28 w-40 rounded-lg object-contain" /> : <audio ref={audio} controls className="max-w-full" />;
 }
 export type ConnectedField = { userId: string; fieldDayId: string; exhibitors: Exhibitor[]; hotspots: Hotspot[]; sync: (workspace: BrowserWorkspace) => Promise<string> };
-export function FieldPrototype({ connected, localUserId, namespace }: { connected?: ConnectedField; localUserId?: string; namespace: string }) {
-  const exhibitors = connected?.exhibitors ?? demoExhibitors;
+export function FieldPrototype({ connected, localUserId, namespace, collectionTest = false }: { connected?: ConnectedField; localUserId?: string; namespace: string; collectionTest?: boolean }) {
+  const exhibitors = collectionTest ? [{ ...demoExhibitors[0], id: 'storage-test-company', name: '임시 테스트 기업', summary: '실제 행사·기업 ID가 없는 로컬 수집 테스트입니다. 공식 데이터가 아닙니다.' }] : connected?.exhibitors ?? demoExhibitors;
   const hotspots = connected?.hotspots ?? demoHotspots;
   const userId = connected?.userId ?? localUserId ?? USER;
   const [selectedId, setSelectedId] = useState(exhibitors[0].id);
@@ -35,12 +39,13 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
   const [note, setNote] = useState<{ context: Context; name: string } | null>(null);
   const [rows, setRows] = useState<SyncItem[]>([]);
   const [notice, setNotice] = useState(connected ? "먼저 기기에 저장합니다. 개인 Google 파일 접근 동의 후 동기화해 주세요." : "사진·녹음·메모는 이 기기에만 저장됩니다. Google 동기화는 연결되지 않았습니다.");
+  const online = useSyncExternalStore(subscribeNetwork, () => navigator.onLine, () => true);
   const [recording, setRecording] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [unsaved, setUnsaved] = useState<SyncItem | null>(null);
-  const [storage] = useState(() => new BrowserWorkspace(`gatherly-v2-${namespace}-${connected ? "connected" : "internal"}`));
+  const [storage] = useState(() => new BrowserWorkspace(`gatherly-v2-${namespace}-${collectionTest ? "storage-test" : connected ? "connected" : "internal"}`));
   const viewport = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -48,7 +53,7 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const alive = useRef(true);
-  const context = (): Context => ({ userId, fieldDayId: connected?.fieldDayId ?? "phase1-demo-field-day", exhibitorId: selectedId });
+  const context = (): Context => ({ userId, fieldDayId: collectionTest ? "storage-test-event" : connected?.fieldDayId ?? "phase1-demo-field-day", exhibitorId: selectedId });
   const refresh = () => storage.list(userId).then(setRows);
   useEffect(() => {
     alive.current = true;
@@ -108,8 +113,8 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
   function select(id: string) { window.speechSynthesis?.cancel(); setSpeaking(false); setSelectedId(id); }
   const filtered = exhibitors.filter(row => row.name.includes(query.trim()));
   return <div className="mx-auto max-w-5xl bg-[#f7f4e9] px-4 py-7 text-[#173e32] sm:px-8">
-    <p className="text-sm font-bold">Gatherly 2.0 · 현장 기록</p><h1 className="mt-2 text-3xl font-bold">지도에서 시작하는 현장 기록</h1>
-    <p className="my-4 rounded-xl border border-[#173e32]/20 bg-white/60 p-4 text-sm">{connected ? "제공된 실제 지도 참고본입니다. 검증된 좌표만 선택 영역으로 표시합니다. 저장 후 개인 Google 동기화 버튼을 눌러 주세요." : <>실제 배치도 참고 이미지입니다. 강조 영역과 기업은 <strong>테스트·미검증</strong>이며 실제 부스와 연결되지 않았습니다. 공식 도슨트·Google 저장은 아직 연결 전입니다.</>}</p>
+    <p className="text-sm font-bold">Gatherly 2.0 · 현장 기록</p><h1 className="mt-2 text-3xl font-bold">{collectionTest ? "내부 자료 수집 테스트" : "지도에서 시작하는 현장 기록"}</h1>
+    {!collectionTest && <><p className="my-4 rounded-xl border border-[#173e32]/20 bg-white/60 p-4 text-sm">{connected ? "제공된 실제 지도 참고본입니다. 검증된 좌표만 선택 영역으로 표시합니다. 저장 후 개인 Google 동기화 버튼을 눌러 주세요." : <>실제 배치도 참고 이미지입니다. 강조 영역과 기업은 <strong>테스트·미검증</strong>이며 실제 부스와 연결되지 않았습니다. 공식 도슨트·Google 저장은 아직 연결 전입니다.</>}</p>
     <p id="map-help" className="mb-2 text-sm font-semibold">↔ 좌우 · ↕ 위아래로 움직여 보세요. 선택 영역을 누르면 아래 카드가 바뀝니다.</p>
     <div ref={viewport} tabIndex={0} role="region" aria-label="양방향 스크롤 부스배치도" aria-describedby="map-help" className="h-[360px] overflow-auto rounded-2xl border-2 border-[#173e32]/30 bg-white" style={{ touchAction: "pan-x pan-y" }} onScroll={() => { if (gesture.current) gesture.current.moved = true; }} onPointerDown={event => { gesture.current = { x: event.clientX, y: event.clientY, left: event.currentTarget.scrollLeft, top: event.currentTarget.scrollTop, moved: false }; }} onPointerMove={event => { if (gesture.current && Math.hypot(event.clientX - gesture.current.x, event.clientY - gesture.current.y) > 8) gesture.current.moved = true; }} onPointerCancel={() => { if (gesture.current) gesture.current.moved = true; }}>
       <div className="relative" style={{ width: 1131, height: 669 }}>
@@ -117,6 +122,8 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
         {hotspots.filter(h => validHotspot(h, exhibitors.find(e => e.id === h.exhibitorId), connected ? h.mapVersion : "reference-v1") && (!connected || h.review === "VERIFIED")).map(h => <button key={h.id} aria-label={`${exhibitors.find(e => e.id === h.exhibitorId)!.name} 선택`} aria-pressed={selectedId === h.exhibitorId} className={`absolute min-h-11 min-w-11 rounded-lg border-2 border-dashed border-[#173e32] text-xs font-bold ${selectedId === h.exhibitorId ? "bg-[#b9e4ca]/80 ring-4 ring-[#173e32]/50" : "bg-white/70"}`} style={overlay(h.geometry)} onClick={event => { const g = gesture.current; const v = viewport.current; if (event.detail === 0 || (g && v && isTap(g, { x: event.clientX, y: event.clientY }, g.moved || g.left !== v.scrollLeft || g.top !== v.scrollTop))) select(h.exhibitorId); }}>{connected ? "부스 선택" : <>테스트<br />미검증</>}</button>)}
       </div>
     </div>
+    </>}
+    {collectionTest && <p className="my-4 rounded-xl border p-4">임시 테스트 행사·기업 · 사진 1장, 녹음 1건, 메모 1건만 확인해 주세요. 원격 업로드는 차단되어 있으며 공식 지도는 불러오지 않습니다.</p>}
     <section aria-labelledby="company-heading" className="mt-4 rounded-2xl border border-[#173e32]/20 bg-[#fffdf5] p-5">
       <div className="flex flex-wrap items-center justify-between gap-4"><h2 id="company-heading" className="text-xl font-bold">{selected.name}</h2><div className="flex gap-2" aria-label="기업 기록 도구">
         <button className={buttonStyle} aria-label="테스트 도슨트 재생 또는 중지" disabled={recording || requesting} onClick={speak}><Volume2 size={22} /></button>
@@ -126,7 +133,7 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
       </div></div>
       <p className="mt-3 text-sm leading-6">{selected.summary}</p><p className="mt-2 text-xs">{connected ? `부스 ${selected.booth ?? "미확인"} · 승인된 기업 음성 해설 준비 중` : "부스번호 미확인 · 공식 출처 미등록 · 도슨트는 브라우저 테스트 음성"}</p>
       {(speaking || recording || requesting) && <p role="status" className="mt-3 font-semibold">{recording ? `녹음 중 ${elapsed}초 · 시작한 기업에 저장됩니다` : requesting ? "마이크 권한 확인 중…" : "테스트 안내 재생 중"}</p>}
-      <input ref={input} type="file" accept="image/*" multiple className="sr-only" aria-label="사진 파일 선택" onChange={async event => {
+      <input ref={input} type="file" accept="image/*" multiple={!collectionTest} className="sr-only" aria-label="사진 파일 선택" onChange={async event => {
         const files = Array.from(event.target.files ?? []); event.target.value = ""; const target = captureContext.current;
         if (!target) return;
         for (const file of files) {
@@ -140,7 +147,8 @@ export function FieldPrototype({ connected, localUserId, namespace }: { connecte
     <section className="mt-5"><label htmlFor="demo-search" className="font-semibold">기업 목록 · 지도 미등록 대안</label><input id="demo-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="테스트 기업 검색" className="my-2 min-h-12 w-full rounded-xl border bg-white p-3" /><div className="flex flex-wrap gap-2">{filtered.map(row => <button key={row.id} className={buttonStyle} onClick={() => select(row.id)}>{row.name}{!hotspots.some(h => h.exhibitorId === row.id) && " · 지도 미등록"}</button>)}{!filtered.length && <p>검색 결과가 없습니다.</p>}</div></section>
     <p role="status" className="my-5 rounded-xl bg-white p-4 text-sm">{notice}</p>
     {unsaved && <div className="mb-4 flex gap-3"><button className={buttonStyle} onClick={() => void store(unsaved)}>기기에 다시 저장</button><button className={buttonStyle} onClick={() => { if (!unsaved.blob) return; const url = URL.createObjectURL(unsaved.blob); const link = document.createElement("a"); link.href = url; link.download = unsaved.blob.type.startsWith("audio/mp4") ? "recording.m4a" : unsaved.blob.type.startsWith("audio/") ? "recording.webm" : unsaved.title; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>원본 다운로드</button></div>}
-    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="rounded-xl border bg-white p-3"><p className="font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : "로컬 대기"}</p>{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
+    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="rounded-xl border bg-white p-3"><p className="font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : "로컬 대기"}</p>{collectionTest && <p className="my-2 text-xs">{row.state} · 전송 시도 {row.attempts}회 · 수정 {row.revision}회</p>}{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
+    {collectionTest && <div className="my-4 rounded-xl border p-4"><p>{online ? "온라인" : "오프라인 · 로컬 수집 가능"} · IndexedDB 로컬 저장 · 원격 전송 시도 0건 · 중복 업로드 방지를 위해 임시 ID 전송 차단</p><p>실패한 기기 저장은 같은 기록으로 다시 저장합니다. 원본과 기록 ID는 유지됩니다.</p><button disabled className={buttonStyle}>Google 원격 업로드 · 재시도 불가</button></div>}
     {connected && <button className={buttonStyle} onClick={async () => { setNotice("개인 Google 저장 확인 중…"); try { setNotice(await connected.sync(storage)); await refresh(); } catch { setNotice("동기화 실패. 로컬 자료는 유지됩니다. 연결과 대기 상태를 확인해 주세요."); } }}>개인 Google 동기화 · 재시도</button>}
     {note && <NoteSheet workspace={storage} context={note.context} companyName={note.name} onClose={() => setNote(null)} onSaved={() => { void refresh(); setNotice(connected ? "메모를 기기에 저장했습니다. 개인 Google 동기화 버튼으로 전송해 주세요." : "메모를 기기에 저장했습니다. Sheets 동기화는 연결 전입니다."); }} />}
   </div>;

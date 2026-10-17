@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
-import { createHash } from 'node:crypto';
+import { createCipheriv, randomBytes, createHash } from 'node:crypto';
 
 const source = process.env.AUTH_GATE_BUILD_SOURCE;
 assert(source && path.resolve(source) !== process.cwd(), 'An isolated build is required');
@@ -17,6 +17,16 @@ const denied = '00000000-0000-0000-0000-000000000002';
 const jwt = id => ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub: id, exp: Math.floor(Date.now()/1000)+3600, role: 'authenticated' })).toString('base64url'), 'fixture'].join('.');
 const tokens = { [approved]: jwt(approved), [denied]: jwt(denied) };
 const cookie = (id, claim = id) => `sb-127-auth-token=base64-${Buffer.from(JSON.stringify({ access_token: tokens[id], refresh_token: 'fixture', expires_at: Math.floor(Date.now()/1000)+3600, user: { id: claim, user_metadata: { is_admin: true } } })).toString('base64url')}`;
+const vaultKey = Buffer.alloc(32, 7); // Local fixture only, never a deployment credential.
+let vaultReads = 0;
+let vaultConnected = true;
+function fixtureCiphertext() {
+  const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', vaultKey, iv);
+  cipher.setAAD(Buffer.from(`production:${approved}`));
+  const state = { resources: {}, records: {}, ...(vaultConnected ? { oauth: { accessToken: 'fixture-private', refreshToken: 'fixture-refresh', expiresAt: 1 } } : {}) };
+  const data = Buffer.concat([cipher.update(JSON.stringify(state)), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), data]).toString('base64');
+}
 let reads = 0;
 let expectedChallenge;
 let exchanges = 0;
@@ -34,6 +44,12 @@ const fixture = createServer(async (request, response) => {
     response.end(JSON.stringify(valid
       ? { access_token: tokens[approved], refresh_token: 'fixture-refresh', expires_in: 3600, token_type: 'bearer', user: { id: approved, aud: 'authenticated' } }
       : { code: 'bad_code_verifier', message: 'fixture' }));
+  } else if (request.url === '/rest/v1/rpc/g2_vault_claim' || request.url === '/rest/v1/rpc/g2_vault_release') {
+    let raw = ''; for await (const chunk of request) raw += chunk;
+    const args = JSON.parse(raw);
+    assert.equal(args.p_user, approved); assert.equal(args.p_environment, 'production');
+    if (request.url.endsWith('claim')) { vaultReads++; response.end(JSON.stringify({ ciphertext: fixtureCiphertext(), revision: 1 })); }
+    else response.end('true');
   } else if (request.url === '/auth/v1/user') {
     response.statusCode = id ? 200 : 401;
     response.end(JSON.stringify(id ? { id, aud: 'authenticated', is_anonymous: false, user_metadata: { is_admin: true } } : { message: 'unauthorized' }));
@@ -53,6 +69,7 @@ Object.assign(env, {
   GATHERLY_V2_APP_ORIGIN: base, GATHERLY_V2_INTEGRATION_ENABLED: 'true', GATHERLY_V2_AUTH_ONLY: 'true',
   GATHERLY_V2_PRODUCTION_ALLOWED_USER_IDS: approved, GATHERLY_V2_PREVIEW_ALLOWED_USER_IDS: denied,
   GATHERLY_V2_GOOGLE_CONSENT_ENABLED: String(consentUIEnabled), GATHERLY_V2_GOOGLE_WRITES_ENABLED: 'false',
+  GATHERLY_V2_TOKEN_ENCRYPTION_KEY: vaultKey.toString('base64'), GATHERLY_V2_SUPABASE_SECRET_KEY: 'fixture-server', GATHERLY_V2_VAULT_BACKEND: 'supabase',
   NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${fixture.address().port}`, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'fixture',
 });
 const server = spawn(process.execPath, [path.resolve('node_modules/next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '--port', '3217'], { cwd: source, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -85,7 +102,7 @@ try {
   assert.match(approvedHtml, /승인된 사용자입니다/);
   assert.match(approvedHtml, /Google Drive·Sheets 연결/);
   assert.match(approvedHtml, /action="\/api\/v2\/google\/connect"/);
-  assert.equal(approvedHtml.includes('disabled=""'), !consentUIEnabled);
+  assert.equal(approvedHtml.match(/<form action="\/api\/v2\/google\/connect"[\s\S]*?<\/form>/)?.[0].includes('disabled=""'), !consentUIEnabled);
   assert.match(approvedHtml, /현재 Google 파일 저장은 비활성/);
   for (const session of [undefined, cookie(denied), cookie(denied, approved)]) {
     const page = await status('/v2?success=true', 200, session);
@@ -93,6 +110,23 @@ try {
     assert(!html.includes('action="/api/v2/google/connect"'));
     assert(!html.includes('연결 정보를 암호화해 안전하게 저장'));
   }
+  for (const [identity, expected] of [[undefined, 401], [cookie(denied), 403], [cookie(denied, approved), 403]]) {
+    const response = await status('/api/v2/google/status?userId=' + approved + '&environment=preview', expected, identity, 'POST');
+    assert.deepEqual(await response.json(), { status: 'ERROR', apiAvailability: 'NOT_CHECKED' });
+    const page = await status('/v2/storage-test', 200, identity);
+    assert(!(await page.text()).includes('사진 수집'));
+  }
+  const testPage = await status('/v2/storage-test', 200, cookie(approved));
+  const testHtml = await testPage.text();
+  assert.match(testHtml, /임시 테스트 행사/); assert.match(testHtml, /사진 수집/);
+  assert.match(testHtml, /Google 원격 업로드/); assert(!testHtml.includes('src="/api/v2/map"'));
+  assert.equal(vaultReads, 0, 'Unapproved status calls never claim a Vault');
+  const storedStatus = await status('/api/v2/google/status?userId=' + denied + '&environment=preview', 200, cookie(approved), 'POST');
+  assert.deepEqual(await storedStatus.json(), { status: 'CONNECTED', apiAvailability: 'NOT_CHECKED' });
+  vaultConnected = false;
+  const emptyStatus = await status('/api/v2/google/status', 200, cookie(approved), 'POST');
+  assert.deepEqual(await emptyStatus.json(), { status: 'NOT_CONNECTED', apiAvailability: 'NOT_CHECKED' });
+  assert.equal(vaultReads, 2);
   const catalogue = await status('/api/v2/catalog?exhibition=' + approved, 200, cookie(approved));
   assert.deepEqual(await catalogue.json(), { exhibitors: [], hotspots: [] });
   assert(reads > 0, 'Approved request reaches the authenticated catalogue adapter');

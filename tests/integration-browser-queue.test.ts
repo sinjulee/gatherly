@@ -31,3 +31,25 @@ test('manual remote sync sends expected owner, keeps reauth pending, then recove
   assert.equal((await db.getNote(context))?.text,'private');
   await syncWorkspace(db,'A',transport); assert.equal((await db.list('A'))[0].state,'SYNCED');
 });
+
+test('offline retry preserves the original and retries the same mutation without duplicating a completed upload', async () => {
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: async (_: string, action: () => Promise<unknown>) => action() } });
+  const db = new BrowserWorkspace(`test-${crypto.randomUUID()}`);
+  await db.saveNote({ ...context, title: 'offline fixture', text: 'keep original' });
+  const original = (await db.list('A'))[0];
+  await syncWorkspace(db, 'A', async () => { throw new TypeError('offline'); });
+  const failed = (await db.list('A'))[0];
+  assert.equal(failed.state, 'FAILED_RETRYABLE'); assert.equal(failed.id, original.id);
+  assert.equal(failed.text, original.text);
+  await db.finishTransfer({ ...failed, nextAttemptAt: 0 });
+  let uploads = 0;
+  const upload: typeof fetch = async (_url, init) => {
+    uploads++;
+    const record = JSON.parse(String((init!.body as FormData).get('record')));
+    assert.equal(record.id, original.id); assert.equal(record.revision, original.revision);
+    return Response.json({ revision: original.revision });
+  };
+  await syncWorkspace(db, 'A', upload); await syncWorkspace(db, 'A', upload);
+  assert.equal(uploads, 1); assert.equal((await db.list('A')).length, 1);
+  assert.equal((await db.list('A'))[0].state, 'SYNCED');
+});
