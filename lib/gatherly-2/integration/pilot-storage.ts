@@ -45,11 +45,12 @@ export function pilotTransport(data: PilotData, save: () => Promise<void>, trans
 }
 export class PilotStorage {
   private storage: GoogleStorage;
-  constructor(private api: GoogleApi, private data: PilotData, private save: () => Promise<void>, private owner: string) {
-    this.storage = new GoogleStorage(api, data, save, owner + ':storage-test-v1');
+  constructor(private api: GoogleApi, private data: PilotData, private save: () => Promise<void>, private owner: string, private sessionId?: string) {
+    this.storage = new GoogleStorage(api, data, save, this.resourceOwner());
   }
+  private resourceOwner() { return this.owner + ':storage-test-v1' + (this.sessionId ? ':' + this.sessionId : ''); }
   private async prepare() {
-    const root = await this.storage.resource('root', 'Gatherly 제한 실증 테스트', 'application/vnd.google-apps.folder');
+    const root = await this.storage.resource('root', 'Gatherly 제한 실증 테스트' + (this.sessionId ? ' · 회차 ' + this.sessionId.slice(0, 8) : ''), 'application/vnd.google-apps.folder');
     const folder = await this.storage.resource(`field:${PILOT_FIELD}`, '사진·녹음·메모 3건 테스트', 'application/vnd.google-apps.folder', root);
     await atOperation('SHEETS_INITIALIZATION_FAILED', () => this.storage.resource(`sheet:${PILOT_FIELD}`, 'Gatherly 테스트 기록 (실제 행사 아님)', 'application/vnd.google-apps.spreadsheet', folder));
   }
@@ -64,7 +65,7 @@ export class PilotStorage {
       return { done: true, offset: 0 };
     }
     let result;
-    try { result = await new CloudMediaStorage(this.api, this.data, this.save, this.owner + ':storage-test-v1').step(slot.record, slot.media, offset, chunk); }
+    try { result = await new CloudMediaStorage(this.api, this.data, this.save, this.resourceOwner()).step(slot.record, slot.media, offset, chunk); }
     catch (error) {
       const key = JSON.stringify([slot.record.fieldDayId, slot.record.exhibitorId, slot.record.id]);
       const ledger = this.data.records[`${key}:${slot.record.revision}`];

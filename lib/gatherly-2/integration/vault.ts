@@ -4,6 +4,7 @@ import path from 'node:path';
 import { IntegrationError } from './config';
 export type Ledger = { hash: string; revision: number; row?: number; fileId?: string; uploadUrl?: string; media?: { size: number; mimeType: string; sha256: string }; done?: boolean; driveVerified?: boolean };
 export type VaultData = {
+  pilotSessions?: Record<string, import('./pilot-session').PilotSession>;
   pilot?: import('./pilot-storage').PilotData;
   oauth?: { refreshToken: string; accessToken: string; expiresAt: number };
   flow?: { state: string; verifier: string; expiresAt: number };

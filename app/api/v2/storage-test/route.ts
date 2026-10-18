@@ -5,7 +5,8 @@ import { requireWrites, googleConfig, vault } from '@/lib/gatherly-2/integration
 import { requireWriteUser } from '@/lib/gatherly-2/integration/write-access';
 import { scopedOwner } from '@/lib/gatherly-2/integration/environment';
 import { GoogleApi } from '@/lib/gatherly-2/integration/google';
-import { PilotStorage, pilotData, pilotRecord, pilotTransport, pilotRemoteEvidence } from '@/lib/gatherly-2/integration/pilot-storage';
+import { PilotStorage, pilotRecord, pilotTransport, pilotRemoteEvidence } from '@/lib/gatherly-2/integration/pilot-storage';
+import { activePilotSession, requireSessionOperation } from '@/lib/gatherly-2/integration/pilot-session';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 /** Limit actual bytes, not just a client-controlled Content-Length header. */
@@ -33,9 +34,11 @@ export async function POST(request: Request) {
     const chunk = form.get('chunk'), offset = Number(form.get('offset') ?? 0);
     if (!check && (!Number.isSafeInteger(offset) || offset < 0 || (chunk instanceof File && chunk.size > 1024 * 1024))) throw new IntegrationError('INVALID');
     const result = await vault().locked(user.id, async (state, save) => {
-      const data = pilotData(state);
+      const run = activePilotSession(state, user.id, form.get('sessionId'));
+      if (slot) requireSessionOperation(run, slot);
+      const data = run.data;
       const api = new GoogleApi(googleConfig(), state, save, pilotTransport(data, save));
-      const storage = new PilotStorage(api, data, save, scopedOwner(user.id));
+      const storage = new PilotStorage(api, data, save, scopedOwner(user.id), run.id);
       try {
         return check ? { states: await storage.status() } : await storage.upload(slot!, offset, chunk instanceof File ? chunk : undefined);
       } finally {

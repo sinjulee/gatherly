@@ -17,7 +17,7 @@ const jwt = id => ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub: id,
 const tokens = { [approved]: jwt(approved), [denied]: jwt(denied) };
 const cookie = (id, claim = id) => `sb-127-auth-token=base64-${Buffer.from(JSON.stringify({ access_token: tokens[id], refresh_token: 'fixture', expires_at: Math.floor(Date.now()/1000)+3600, user: { id: claim, user_metadata: { is_admin: true } } })).toString('base64url')}`;
 const vaultKey = Buffer.alloc(32, 7); // Local fixture only, never a deployment credential.
-let vaultReads = 0;
+let vaultReads = 0; let persistedCiphertext;
 let vaultConnected = true;
 function fixtureCiphertext() {
   const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', vaultKey, iv);
@@ -45,8 +45,8 @@ const fixture = createServer(async (request, response) => {
     let raw = ''; for await (const chunk of request) raw += chunk;
     const args = JSON.parse(raw);
     assert.equal(args.p_user, approved); assert.equal(args.p_environment, 'production');
-    if (request.url.endsWith('claim')) { vaultReads++; response.end(JSON.stringify({ ciphertext: fixtureCiphertext(), revision: 1 })); }
-    else if(request.url.endsWith('save')) response.end(String(args.p_revision+1)); else response.end('true');
+    if (request.url.endsWith('claim')) { vaultReads++; response.end(JSON.stringify({ ciphertext: persistedCiphertext ?? fixtureCiphertext(), revision: 1 })); }
+    else if(request.url.endsWith('save')) { persistedCiphertext=args.p_ciphertext; response.end(String(args.p_revision+1)); } else response.end('true');
   } else if (request.url === '/auth/v1/user') {
     response.statusCode = id ? 200 : 401;
     response.end(JSON.stringify(id ? { id, aud: 'authenticated', is_anonymous: false, user_metadata: { is_admin: true } } : { message: 'unauthorized' }));
@@ -62,10 +62,11 @@ const consentUIEnabled = process.env.AUTH_GATE_CONSENT_UI_ENABLED === '1';
 const env = { ...process.env };
 for (const key of Object.keys(env)) if (/^(GATHERLY_|NEXT_PUBLIC_SUPABASE|VERCEL)/.test(key)) delete env[key];
 Object.assign(env, {
+  GATHERLY_V2_PILOT_APPROVAL_ID:'00000000-0000-4000-8000-000000000015', GATHERLY_V2_PILOT_STATE:'open', GATHERLY_V2_PILOT_STARTS_AT:new Date(Date.now()-60000).toISOString(), GATHERLY_V2_PILOT_ENDS_AT:new Date(Date.now()+3600000).toISOString(),
   VERCEL: '1', VERCEL_ENV: 'production', GATHERLY_V2_ENVIRONMENT: 'production',
   GATHERLY_V2_APP_ORIGIN: base, GATHERLY_V2_INTEGRATION_ENABLED: 'true', GATHERLY_V2_AUTH_ONLY: 'true',
   GATHERLY_V2_PRODUCTION_ALLOWED_USER_IDS: approved+','+denied, GATHERLY_V2_PRODUCTION_WRITE_USER_ID: approved, GATHERLY_V2_PREVIEW_ALLOWED_USER_IDS: denied,
-  GATHERLY_V2_GOOGLE_CONSENT_ENABLED: String(consentUIEnabled), GATHERLY_V2_GOOGLE_WRITES_ENABLED: 'true', GATHERLY_V2_GOOGLE_CLIENT_ID:'fixture', GATHERLY_V2_GOOGLE_CLIENT_SECRET:'fixture', GATHERLY_V2_GOOGLE_REDIRECT_URI:base+'/api/v2/google/callback',
+  GATHERLY_V2_GOOGLE_CONSENT_ENABLED: String(consentUIEnabled), GATHERLY_V2_GOOGLE_WRITES_ENABLED: process.env.PILOT_GATE_WRITES_FALSE === '1' ? 'false' : 'true', GATHERLY_V2_GOOGLE_CLIENT_ID:'fixture', GATHERLY_V2_GOOGLE_CLIENT_SECRET:'fixture', GATHERLY_V2_GOOGLE_REDIRECT_URI:base+'/api/v2/google/callback',
   GATHERLY_V2_TOKEN_ENCRYPTION_KEY: vaultKey.toString('base64'), GATHERLY_V2_SUPABASE_SECRET_KEY: 'fixture-server', GATHERLY_V2_VAULT_BACKEND: 'supabase',
   NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${fixture.address().port}`, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'fixture',
 });
@@ -88,21 +89,44 @@ try {
   }
   // Print only known error categories; never dump response bodies or credentials.
   assert(ready, `Isolated server startup failed: HTTP ${[...startupStatuses].join(',')}; ${['EADDRINUSE', 'DISABLED', 'MODULE_NOT_FOUND', 'fetch failed', 'Invalid API key'].filter(code => serverLog.includes(code)).join(',')}`);
+  if(process.env.PILOT_GATE_WRITES_FALSE==='1') {
+    await status('/api/v2/storage-test/session?action=open',403,cookie(denied),'POST');
+    const a=await status('/api/v2/storage-test/session?action=open',200,cookie(approved),'POST');const row=await a.json();
+    const b=await status('/api/v2/storage-test/session?action=open',200,cookie(approved),'POST');assert.deepEqual(await b.json(),row);
+    const before=vaultReads;const blocked=await status('/api/v2/storage-test',503,cookie(approved),'POST');assert.equal((await blocked.json()).error,'DISABLED');assert.equal(vaultReads,before);
+    await status('/api/v2/storage-test/session?action=close&sessionId='+row.id,200,cookie(approved),'POST');
+    console.log(JSON.stringify({sessionWithWritesFalse:'PASS',httpChecks:checks,actualGoogleWrites:0,fixtureOnly:true}));
+  } else {
   await status('/api/v2/storage-test',401,undefined,'POST');
   await status('/api/v2/storage-test',403,cookie(denied),'POST');
   await status('/api/v2/storage-test?userId='+approved+'&environment=production',403,cookie(denied,approved),'POST');
   const ownerPage=await status('/v2/storage-test',200,cookie(approved));
-  assert.match(await ownerPage.text(), /아래 실저장 테스트에서 별도로 업로드/);
+  assert.match(await ownerPage.text(), /서버 승인 회차 열기/);
   const otherPage=await status('/v2/storage-test',200,cookie(denied));
-  assert.match(await otherPage.text(), /서버 정책상 차단/);
-  const form = new FormData(); form.set('expectedUserId',approved);form.set('action','status');
+  assert.match(await otherPage.text(), /원격 재전송 차단/);
+  await status('/api/v2/storage-test/session?action=open',401,undefined,'POST');
+  await status('/api/v2/storage-test/session?action=open',403,cookie(denied),'POST');
+  await status('/api/v2/storage-test/session?action=open&sessionId=forged',400,cookie(approved),'POST');
+  await status('/api/v2/storage-test/session?action=open&approval=forged',400,cookie(approved),'POST');
+  const opened=await status('/api/v2/storage-test/session?action=open',200,cookie(approved),'POST');const run=await opened.json();
+  const again=await status('/api/v2/storage-test/session?action=open',200,cookie(approved),'POST');assert.deepEqual(await again.json(),run);
+  const form = new FormData(); form.set('expectedUserId',approved);form.set('action','status');form.set('sessionId',run.id);
   const response=await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:form});
   assert.equal(response.status,200);assert.deepEqual(await response.json(),{states:{note:'NOT_UPLOADED',photo:'NOT_UPLOADED',audio:'NOT_UPLOADED'}});checks++;
+  const replay=new FormData();replay.set('expectedUserId',approved);replay.set('sessionId',run.id);replay.set('action','upload');replay.set('record',JSON.stringify({id:approved,fieldDayId:'storage-test-event',exhibitorId:'storage-test-company',title:'fixture',text:'fixture',kind:'NOTE',revision:1}));
+  assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:replay})).status,409);checks++;
   form.set('expectedUserId',denied);
   assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:form})).status,403);checks++;
   assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:'https://evil.invalid',cookie:cookie(approved)},body:form})).status,403);checks++;
   for(const route of ['/api/v2/sync','/api/v2/media'])await status(route,503,cookie(approved),'POST');
-  assert.equal(reads,0);assert.equal(vaultReads,1);
+    form.set('expectedUserId',approved);form.set('sessionId','forged');
+  assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:form})).status,409);checks++;
+  await status('/api/v2/storage-test/session?action=close&sessionId='+run.id,200,cookie(approved),'POST');
+  const closed=await status('/api/v2/storage-test/session?action=open',200,cookie(approved),'POST');assert.equal((await closed.json()).status,'CLOSED');
+  form.set('sessionId',run.id);assert.equal((await fetch(base+'/api/v2/storage-test',{method:'POST',headers:{origin:base,cookie:cookie(approved)},body:form})).status,409);checks++;
+  const history=await status('/api/v2/storage-test/session?action=history',200,cookie(approved),'POST');const archived=await history.json();assert.equal(archived[0].id,run.id);assert.equal(archived[0].readOnly,true);
+  assert.equal(reads,0);assert(vaultReads>=1);
   if(process.env.PILOT_TOUCH_UI==='1') await (await import('./v2-mobile-browser.mjs')).checkMobileUI(base,cookie(approved),true);
   console.log(JSON.stringify({pilotGate:'PASS',httpChecks:checks,actualGoogleWrites:0,fixtureOnly:true}));
+  }
 } finally {server.kill('SIGTERM');fixture.close();}

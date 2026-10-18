@@ -1,9 +1,8 @@
 import { IntegrationError } from '@/lib/gatherly-2/integration/config';
-import { PilotActions } from '@/components/gatherly-2/pilot-actions';
+import { PilotSessions } from '@/components/gatherly-2/pilot-sessions';
 import { requireWriteUser } from '@/lib/gatherly-2/integration/write-access';
 import { session } from '@/lib/gatherly-2/auth/server';
 import { environment } from '@/lib/gatherly-2/integration/environment';
-import { FieldPrototype } from '@/components/gatherly-2/field-prototype';
 import { GoogleConnection } from '@/components/gatherly-2/google-connection';
 export const dynamic = 'force-dynamic';
 export default async function StorageTestPage() {
@@ -15,5 +14,5 @@ export default async function StorageTestPage() {
     else if (process.env.GATHERLY_V2_GOOGLE_WRITES_ENABLED !== 'true') blockedReason = '서버 정책상 차단: Google 원격 쓰기 설정이 꺼져 있습니다.';
     else blockedReason = '서버 정책상 차단: 단일 쓰기 사용자 또는 서버 환경 설정을 확인해야 합니다.';
   }
-  return <main className="bg-[#f7f4e9] text-[#173e32]"><div className="v2-shell"><nav className="v2-actions"><a className="v2-button" href="/v2">연결 화면으로 돌아가기</a></nav><GoogleConnection consentEnabled={process.env.GATHERLY_V2_GOOGLE_CONSENT_ENABLED === 'true'} writesEnabled={writes} /></div><FieldPrototype key={result.user.id} localUserId={result.user.id} namespace={environment()} collectionTest remoteTest={writes} /><div className="v2-shell"><PilotActions userId={result.user.id} namespace={environment()} enabled={writes} blockedReason={blockedReason} /></div></main>;
+  return <main className="bg-[#f7f4e9] text-[#173e32]"><div className="v2-shell"><nav className="v2-actions"><a className="v2-button" href="/v2">연결 화면으로 돌아가기</a></nav><GoogleConnection consentEnabled={process.env.GATHERLY_V2_GOOGLE_CONSENT_ENABLED === 'true'} writesEnabled={writes} /></div><PilotSessions userId={result.user.id} namespace={environment()} enabled={writes} blockedReason={blockedReason} /></main>;
 }
