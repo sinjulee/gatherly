@@ -56,8 +56,12 @@ export class GoogleApi {
     const target = new URL(url);
     if (target.protocol !== 'https:' || !['www.googleapis.com', 'sheets.googleapis.com'].includes(target.hostname)) throw new IntegrationError('FORBIDDEN', 403);
     const stage: Diagnostic = target.hostname === 'sheets.googleapis.com' ? (['POST', 'PUT', 'PATCH'].includes(init.method ?? 'GET') ? 'SHEETS_WRITE_FAILED' : 'SHEETS_READ_FAILED') : target.pathname.includes('/upload/') ? 'DRIVE_UPLOAD_FAILED' : init.method === 'POST' ? 'DRIVE_CREATE_FAILED' : 'DRIVE_READ_FAILED';
+    // Drive uses HTTP 308 for resumable progress, not navigation. Native fetch
+    // with redirect:error throws before callers can inspect its status/Range.
+    const resumablePut = target.hostname === 'www.googleapis.com' && target.pathname.startsWith('/upload/') && init.method === 'PUT' && new Headers(init.headers).has('Content-Range');
     return atStage(stage, async () => {
-    const response = await this.transport(url, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), Authorization: `Bearer ${await this.access()}` }, signal: AbortSignal.timeout(30_000), redirect: 'error' });
+    const response = await this.transport(url, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), Authorization: `Bearer ${await this.access()}` }, signal: AbortSignal.timeout(30_000), redirect: resumablePut ? 'manual' : 'error' });
+    if (resumablePut && response.status >= 300 && response.status < 400 && response.status !== 308) throw new IntegrationError('RETRY', 503, stage, response.status);
     if (response.status === 401 && retry) { await this.access(true); return this.request(url, init, false); }
     if (response.status === 401 || response.status === 403) throw new IntegrationError('REAUTH', 401, stage, response.status);
     if (response.status === 429 || response.status >= 500) throw new IntegrationError('RETRY', 503, stage, response.status);

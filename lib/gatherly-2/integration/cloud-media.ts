@@ -42,7 +42,7 @@ export class CloudMediaStorage {
     let remoteOffset = 0;
     if (ledger.uploadUrl) {
       const progress = await atOperation('DRIVE_UPLOAD_STATUS_FAILED', () => this.api.request(ledger.uploadUrl!, { method: 'PUT', headers: { 'Content-Length': '0', 'Content-Range': `bytes */${info.size}` } }));
-      if (progress.ok) return complete();
+      if (progress.status === 200 || progress.status === 201) return complete();
       if ([404,410].includes(progress.status)) { delete ledger.uploadUrl; await this.save(); }
       else if (progress.status === 308) {
         const range = progress.headers.get('range'); remoteOffset = range ? Number(range.match(/^bytes=0-(\d+)$/)?.[1]) + 1 : 0;
@@ -62,7 +62,7 @@ export class CloudMediaStorage {
     }
     if (!chunk || offset !== remoteOffset) return { offset: remoteOffset, done: false };
     const response = await atOperation('DRIVE_CHUNK_TRANSFER_FAILED', () => this.api.request(ledger.uploadUrl!, { method: 'PUT', headers: { 'Content-Type': info.mimeType, 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${info.size}` }, body: chunk }));
-    if (response.ok) return complete();
+    if (response.status === 200 || response.status === 201) return complete();
     if (response.status !== 308) throw new IntegrationError('RETRY', 503, 'DRIVE_CHUNK_TRANSFER_FAILED', response.status);
     const range = response.headers.get('range'), acknowledged = range ? Number(range.match(/^bytes=0-(\d+)$/)?.[1]) + 1 : 0;
     if (!Number.isSafeInteger(acknowledged) || acknowledged <= offset || acknowledged > offset + chunk.size) throw new IntegrationError('RETRY', 503, 'DRIVE_CHUNK_TRANSFER_FAILED', response.status);
