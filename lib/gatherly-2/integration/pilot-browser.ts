@@ -11,7 +11,7 @@ export async function pilotPost(form: FormData, transport: typeof fetch = fetch)
     const stage = diagnosticCodes.includes(result.diagnostic) ? ` [${result.diagnostic}]` : '';
     const request = validRequestId(result.requestId) ? ` 요청 ${result.requestId}` : '';
     const evidence = result.remote ? ` 기존 검증 이력: 파일 ${result.remote.file === 'CONFIRMED' ? '확인됨' : '미확인'} · 행 ${result.remote.row === 'CONFIRMED' ? '확인됨' : '미확인'}.` : '';
-    throw new Error((messages[result.error] ?? '저장 또는 조회 실패. 로컬 원본은 유지됩니다.') + stage + request + evidence + ' 복구 정보와 원본은 보존됩니다. 원격 대조 전 삭제·재전송하지 마세요.');
+    throw new Error((messages[result.error] ?? '저장 또는 조회 실패. 로컬 원본은 유지됩니다.') + stage + request + evidence + ' 복구 정보와 원본은 보존됩니다. 원격 대조 전 재전송하지 마세요. 로컬 삭제는 복구 불가 위험을 확인한 뒤 선택할 수 있습니다.');
   }
   return result;
 }

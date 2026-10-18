@@ -4,6 +4,7 @@ import { Camera, Mic, Volume2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { demoExhibitors, demoHotspots, isTap, overlay, validHotspot } from "@/lib/gatherly-2/map";
+import { localDeleteWarning } from "@/lib/gatherly-2/pilot-ui";
 import { BrowserWorkspace } from "@/lib/gatherly-2/browser-storage";
 import type { Context, SyncItem, Exhibitor, Hotspot } from "@/lib/gatherly-2/contracts";
 import { NoteSheet } from "./note-sheet";
@@ -37,6 +38,8 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
   const selected = exhibitors.find(row => row.id === selectedId)!;
   const [query, setQuery] = useState("");
   const [note, setNote] = useState<{ context: Context; name: string } | null>(null);
+  const [localStatus, setLocalStatus] = useState<Record<string, Awaited<ReturnType<BrowserWorkspace['pilotLocalStatus']>>>>({});
+  const [cardNotice, setCardNotice] = useState<Record<string, string>>({});
   const [rows, setRows] = useState<SyncItem[]>([]);
   const [notice, setNotice] = useState(remoteTest ? "기기에 저장한 뒤 아래 실저장 테스트에서 전송해 주세요." : connected ? "먼저 기기에 저장합니다. 개인 Google 파일 접근 동의 후 동기화해 주세요." : "사진·녹음·메모는 이 기기에만 저장됩니다. Google 동기화는 연결되지 않았습니다.");
   const online = useSyncExternalStore(subscribeNetwork, () => navigator.onLine, () => true);
@@ -55,26 +58,38 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
   const alive = useRef(true);
   const context = (): Context => ({ userId, fieldDayId: collectionTest ? "storage-test-event" : connected?.fieldDayId ?? "phase1-demo-field-day", exhibitorId: selectedId });
   const refresh = async () => { setRows(await storage.list(userId)); if (collectionTest) window.dispatchEvent(new Event('gatherly-pilot-updated')); };
-  async function deleteLocal(row: SyncItem) {
-    if (!window.confirm(row.state === 'SYNCED' ? '이 기기의 원본만 삭제할까요? Google 파일은 유지되며 원격 교체는 불가합니다.' : '준비한 로컬 자료를 삭제할까요? 삭제 후 되돌릴 수 없습니다.')) return;
+  async function recoverLocal(row: SyncItem) {
     try {
-      if (!navigator.locks) throw new Error('안전한 삭제 잠금을 지원하지 않는 브라우저입니다.');
-      await navigator.locks.request(`gatherly-pilot:${userId}`, { ifAvailable: true }, async lock => {
-        if (!lock) throw new Error('업로드 중에는 삭제할 수 없습니다. 완료 후 다시 시도해 주세요.');
-        await storage.deletePilotLocal(row, userId);
-      });
-      await refresh(); setNotice('로컬 자료를 삭제했습니다. Google 파일과 원격 슬롯은 변경하지 않았습니다.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : '로컬 삭제 실패. 원본을 유지합니다.'); }
+      await storage.recoverPilotLocal(row, userId);
+      await refresh();
+      setCardNotice(value => ({ ...value, [row.id]: '로컬 상태를 확인했습니다. 원격 결과는 미확인이며 원본·복구 정보는 보존됩니다. 삭제나 업로드를 수행하지 않았습니다.' }));
+    } catch (error) { setCardNotice(value => ({ ...value, [row.id]: error instanceof Error ? error.message : '상태 확인 실패. 원본을 유지합니다.' })); }
+  }
+  async function deleteLocal(row: SyncItem) {
+    if (!window.confirm(localDeleteWarning())) return;
+    setCardNotice(value => ({ ...value, [row.id]: '전송 종료 확인 후 로컬 삭제 중입니다. 최대 30초 기다려 주세요.' }));
+    try {
+      await storage.deletePilotLocal(row, userId);
+      setRows(value => value.filter(item => item.id !== row.id));
+      setNotice('로컬 자료를 삭제했습니다. Google 파일과 원격 슬롯은 변경하지 않았습니다.');
+      try { await refresh(); } catch { setNotice('로컬 삭제는 완료됐지만 목록을 다시 읽지 못했습니다. 새로고침해 주세요. Google 자료는 변경하지 않았습니다.'); }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '로컬 삭제 실패. 원본을 유지합니다.';
+      setNotice(message); setCardNotice(value => ({ ...value, [row.id]: message }));
+    }
   }
   useEffect(() => {
     alive.current = true;
-    const updated = () => { storage.list(userId).then(setRows).catch(() => setNotice("기기 보관 목록 조회 실패. 원본은 유지됩니다.")); };
+    const updated = () => { storage.list(userId).then(async items => {
+      const statuses = collectionTest ? await Promise.all(items.map(async item => [item.id, await storage.pilotLocalStatus(item, userId)] as const)) : [];
+      if (alive.current) { setRows(items); setLocalStatus(Object.fromEntries(statuses)); }
+    }).catch(() => setNotice("기기 보관 목록 조회 실패. 원본은 유지됩니다.")); };
     window.addEventListener("gatherly-pilot-updated", updated);
-    storage.list(userId).then(setRows).catch(() => setNotice("기기 저장소를 사용할 수 없습니다. 브라우저 권한/용량을 확인해 주세요."));
+    updated();
     const visibility = () => { if (document.hidden && recorder.current?.state === "recording") { recorder.current.stop(); setNotice("화면이 가려져 녹음을 중지하고 기기에 보관합니다."); } };
     document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("gatherly-pilot-updated", updated); alive.current = false; document.removeEventListener("visibilitychange", visibility); if (recorder.current?.state === "recording") recorder.current.stop(); stream.current?.getTracks().forEach(track => track.stop()); window.speechSynthesis?.cancel(); };
-  }, [userId, storage]);
+  }, [userId, storage, collectionTest]);
   useEffect(() => {
     if (!recording) return;
     const timer = window.setInterval(() => setElapsed(value => value + 1), 1000);
@@ -160,7 +175,7 @@ export function FieldPrototype({ connected, localUserId, namespace, collectionTe
     <section className="mt-5"><label htmlFor="demo-search" className="font-semibold">기업 목록 · 지도 미등록 대안</label><input id="demo-search" value={query} onChange={e => setQuery(e.target.value)} placeholder="테스트 기업 검색" className="my-2 min-h-12 w-full rounded-xl border bg-white p-3" /><div className="flex flex-wrap gap-2">{filtered.map(row => <button key={row.id} className={buttonStyle} onClick={() => select(row.id)}>{row.name}{!hotspots.some(h => h.exhibitorId === row.id) && " · 지도 미등록"}</button>)}{!filtered.length && <p>검색 결과가 없습니다.</p>}</div></section>
     <p role="status" className="my-5 rounded-xl bg-white p-4 text-sm">{notice}</p>
     {unsaved && <div className="mb-4 flex gap-3"><button className={buttonStyle} onClick={() => void store(unsaved)}>기기에 다시 저장</button><button className={buttonStyle} onClick={() => { if (!unsaved.blob) return; const url = URL.createObjectURL(unsaved.blob); const link = document.createElement("a"); link.href = url; link.download = unsaved.blob.type.startsWith("audio/mp4") ? "recording.m4a" : unsaved.blob.type.startsWith("audio/") ? "recording.webm" : unsaved.title; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>원본 다운로드</button></div>}
-    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : remoteTest ? "로컬 원본은 유지됩니다. 실제 원격 상태는 아래에서 다시 조회해 주세요." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="relative rounded-xl border bg-white p-3" data-local-card><div className="flex items-start justify-between gap-3"><p className="min-w-0 flex-1 font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : row.state === "SYNCED" ? "원격 저장 확인 · 원본 보관" : row.state === "FAILED_RETRYABLE" ? "실패 · 아래에서 재시도" : "로컬 대기"}</p>{collectionTest && <button type="button" className={buttonStyle + " shrink-0"} aria-label={`${row.title || "메모"} 로컬 삭제`} onClick={() => void deleteLocal(row)}><Trash2 size={22} aria-hidden="true" /></button>}</div>{collectionTest && <p className="my-2 text-sm">{row.state === 'SYNCED' ? '로컬 삭제 가능 · Google 원본 유지 · 원격 교체 불가' : row.attempts > 0 || row.state !== 'LOCAL_PENDING' ? '전송 시도 자료 · 원격 확인 전 삭제/교체 불가' : '미전송 로컬 자료 · 삭제 후 다시 준비 가능'}</p>}{collectionTest && <p className="my-2 text-xs">{row.state} · 전송 시도 {row.attempts}회 · 수정 {row.revision}회</p>}{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
+    <section><h2 className="text-lg font-bold">이 기업의 기기 보관함</h2><p className="my-2 text-xs">{connected ? "동기화 완료 상태는 개인 Google 저장까지 확인한 기록입니다. 로컬 대기 자료는 브라우저 삭제 시 사라질 수 있습니다." : remoteTest ? "로컬 원본은 유지됩니다. 실제 원격 상태는 아래에서 다시 조회해 주세요." : "외부 저장 0건 · 새로고침 후에도 이 브라우저에 남습니다. 브라우저 데이터 삭제 시 사라질 수 있습니다."}</p><div className="grid gap-3">{rows.filter(row => row.exhibitorId === selectedId).map(row => <article key={row.id} className="relative rounded-xl border bg-white p-3" data-local-card><div className="flex items-start justify-between gap-3"><p className="min-w-0 flex-1 font-semibold">{row.title || "메모"} · {connected ? ({ SYNCED: "동기화 완료", BLOCKED_REAUTH: "Google 재연결 필요", CONFLICT: "충돌 확인 필요", FAILED_FINAL: "수동 재시도 필요" }[row.state as string] ?? "동기화 대기") : row.state === "SYNCED" ? "원격 저장 확인 · 원본 보관" : row.state === "FAILED_RETRYABLE" ? "전송 실패 · 원격 결과 미확인" : "로컬 대기"}</p>{collectionTest && <button type="button" className={buttonStyle + " shrink-0"} aria-label={`${row.title || "메모"} 로컬 삭제`} onClick={() => void deleteLocal(row)}><Trash2 size={22} aria-hidden="true" /></button>}</div>{collectionTest && <p className="my-2 text-sm">{localStatus[row.id]?.reason ?? '로컬 전송 이력 확인 중 · 원본 보존'}</p>}{collectionTest && cardNotice[row.id] && <p role="alert" className="my-3 rounded-lg border p-3 text-sm">{cardNotice[row.id]}</p>}{collectionTest && localStatus[row.id]?.canRecover && <button type="button" className={buttonStyle + " my-3 w-full"} data-local-recover onClick={() => void recoverLocal(row)}>로컬 전송 상태 확인</button>}{collectionTest && <p className="my-2 text-xs">{row.state} · 전송 시도 {row.attempts}회 · 수정 {row.revision}회</p>}{row.kind === "NOTE" ? <p className="mt-2 whitespace-pre-wrap text-sm">{row.text}</p> : <MediaPreview item={row} />}</article>)}</div></section>
     {collectionTest && !remoteTest && <div className="my-4 rounded-xl border p-4"><p>{online ? "온라인" : "오프라인 · 로컬 수집 가능"} · IndexedDB 로컬 저장 · 원격 업로드 비활성 · 로컬 원본 유지</p><p>실패한 기기 저장은 같은 기록으로 다시 저장합니다. 원본과 기록 ID는 유지됩니다.</p><button disabled className={buttonStyle}>Google 원격 업로드 · 재시도 불가</button></div>}
     {connected && <button className={buttonStyle} onClick={async () => { setNotice("개인 Google 저장 확인 중…"); try { setNotice(await connected.sync(storage)); await refresh(); } catch { setNotice("동기화 실패. 로컬 자료는 유지됩니다. 연결과 대기 상태를 확인해 주세요."); } }}>개인 Google 동기화 · 재시도</button>}
     {note && <NoteSheet workspace={storage} context={note.context} companyName={note.name} onClose={() => setNote(null)} onSaved={() => { void refresh(); setNotice(connected ? "메모를 기기에 저장했습니다. 개인 Google 동기화 버튼으로 전송해 주세요." : "메모를 기기에 저장했습니다. Sheets 동기화는 연결 전입니다."); }} />}

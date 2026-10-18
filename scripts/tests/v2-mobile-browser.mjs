@@ -23,7 +23,10 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
     });
     socket.addEventListener('message',event=>{
       const m=JSON.parse(event.data);
-      if(m.method==='Page.javascriptDialogOpening') void command('Page.handleJavaScriptDialog',{accept:acceptDelete});
+      if(m.method==='Page.javascriptDialogOpening') {
+        if(!m.params.message.includes('영구적으로 복구') || !m.params.message.includes('Google에 파일이 남아') || !m.params.message.includes('삭제하지 않습니다')) errors.push('missing deletion warning');
+        void command('Page.handleJavaScriptDialog',{accept:acceptDelete});
+      }
       if(m.method==='Runtime.exceptionThrown') errors.push('browser exception');
       if(m.method==='Fetch.requestPaused') {
         if(pilot && m.params.request.url===base+'/api/v2/storage-test') {
@@ -80,11 +83,12 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
           await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('사진 없음')");
           assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));
           await touch('[data-pilot-upload]');assert.equal(uploads,0);
+          let seedSerial = 0;
           const seed = async kinds => evaluate(`new Promise((resolve,reject)=>{
             const request=indexedDB.open('gatherly-v2-production-storage-test',1);
             request.onsuccess=()=>{const db=request.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records');
               const ctx={userId:'00000000-0000-0000-0000-000000000001',fieldDayId:'storage-test-event',exhibitorId:'storage-test-company'};
-              for(const kind of ${JSON.stringify(kinds)}) {const id='mobile-'+kind;const row={...ctx,id,title:kind,kind:kind==='note'?'NOTE':'MEDIA',text:kind==='note'?'fixture':undefined,blob:kind==='note'?undefined:new Blob(['fixture'],{type:kind==='photo'?'image/png':'audio/mp4'}),state:'LOCAL_PENDING',revision:1,attempts:0,nextAttemptAt:0};store.put(row,'queue:'+JSON.stringify([ctx.userId,ctx.fieldDayId,ctx.exhibitorId,id]));}
+              for(const kind of ${JSON.stringify(kinds)}) {const id='mobile-'+kind+'-'+${++seedSerial};const row={...ctx,id,title:kind,kind:kind==='note'?'NOTE':'MEDIA',text:kind==='note'?'fixture':undefined,blob:kind==='note'?undefined:new Blob(['fixture'],{type:kind==='photo'?'image/png':'audio/mp4'}),state:'LOCAL_PENDING',revision:1,attempts:0,nextAttemptAt:0};store.put(row,'queue:'+JSON.stringify([ctx.userId,ctx.fieldDayId,ctx.exhibitorId,id]));}
               tx.oncomplete=()=>{db.close();window.dispatchEvent(new Event('gatherly-pilot-updated'));resolve(true);};tx.onerror=reject;
             };request.onerror=reject;
           })`);
@@ -113,7 +117,19 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
           await touch('[aria-label="photo 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===2");
           await seed(['photo']);await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('원격 교체')");
           assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));assert.equal(uploads,4);
-
+          await evaluate(`new Promise((resolve,reject)=>{const request=indexedDB.open('gatherly-v2-production-storage-test',1);request.onsuccess=()=>{const db=request.result,tx=db.transaction('records','readwrite'),store=tx.objectStore('records');const key=JSON.stringify(['00000000-0000-0000-0000-000000000001','storage-test-event','storage-test-company','mobile-audio-3']);const get=store.get('queue:'+key);get.onsuccess=()=>{const row={...get.result,state:'DRIVE_UPLOADING',attempts:1};store.put(row,'queue:'+key);store.put(row,'transfer:'+key);};tx.oncomplete=()=>{db.close();window.dispatchEvent(new Event('gatherly-pilot-updated'));resolve(true);};tx.onerror=reject;};})`);
+          await wait("!!document.querySelector('[data-local-recover]')");
+          acceptDelete=false;await touch('[aria-label="audio 로컬 삭제"]');
+          assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),3);
+          await touch('[data-local-recover]');await wait("[...document.querySelectorAll('[data-local-card]')].some(e=>e.textContent.includes('FAILED_RETRYABLE'))");
+          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));assert.equal(uploads,4);
+          const retained=await evaluate(`new Promise(resolve=>{const r=indexedDB.open('gatherly-v2-production-storage-test',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('records'),q=tx.objectStore('records').get('transfer:'+JSON.stringify(['00000000-0000-0000-0000-000000000001','storage-test-event','storage-test-company','mobile-audio-3']));q.onsuccess=()=>resolve({id:q.result.id,revision:q.result.revision,size:q.result.blob.size});tx.oncomplete=()=>db.close();};})`);
+          assert.deepEqual(retained,{id:'mobile-audio-3',revision:1,size:7});
+          acceptDelete=true;await touch('[aria-label="audio 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===2");
+          await command('Page.reload');await wait("document.querySelectorAll('[data-local-card]').length===2");
+          assert(await evaluate("![...document.querySelectorAll('[data-local-card]')].some(e=>e.textContent.includes('audio'))"));
+          await wait("document.querySelector('[data-pilot-upload]').disabled && document.querySelector('#pilot-upload-reasons').textContent.includes('원격 교체')");
+          assert.equal(uploads,4);
         }
         if(width===390){const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(path.join(profile,route.replaceAll('/','_')+'.png'),Buffer.from(shot.data,'base64'));}
         pages++;
