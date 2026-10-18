@@ -1,12 +1,18 @@
+import { diagnosticCodes, validRequestId } from './config';
 import type { BrowserWorkspace } from '../browser-storage';
 import { pilotReadiness } from '../pilot-ui';
 import type { SyncItem } from '../contracts';
 const endpoint = '/api/v2/storage-test';
-const messages: Record<string, string> = { SHEET_PENDING: 'Drive 파일은 확인했지만 Sheets 반영은 미완료입니다. 같은 자료로 재시도하면 기존 파일을 재사용합니다.', DISABLED: '원격 저장이 비활성입니다.', FORBIDDEN: '이 계정은 쓰기 승인이 없습니다.', UNAUTHORIZED: '다시 로그인해 주세요.', REAUTH: 'Google 연결 또는 Drive·Sheets API 설정을 확인해 주세요.', LIMIT: '테스트 요청 한도에 도달했습니다. 운영자 확인이 필요합니다.', CONFLICT: '예약한 자료와 내용 또는 원격 기록이 다릅니다. 원본을 유지하고 확인해 주세요.', INVALID: '사진·녹음은 각각 5MiB 이하, 메모는 500자 이하로 준비해 주세요.', RETRY: '원격 저장 확인에 실패했습니다. 같은 기록으로 재시도해 주세요.' };
+const messages: Record<string, string> = { SHEET_PENDING: 'Drive 파일은 확인했지만 Sheets 반영은 미완료입니다. 기존 파일을 사용하는 복구 확인이 필요합니다.', DISABLED: '원격 저장이 비활성입니다.', FORBIDDEN: '이 계정은 쓰기 승인이 없습니다.', UNAUTHORIZED: '다시 로그인해 주세요.', REAUTH: 'Google 연결 또는 Drive·Sheets API 설정을 확인해 주세요.', LIMIT: '테스트 요청 한도에 도달했습니다. 운영자 확인이 필요합니다.', CONFLICT: '예약한 자료와 내용 또는 원격 기록이 다릅니다. 원본을 유지하고 확인해 주세요.', INVALID: '사진·녹음은 각각 5MiB 이하, 메모는 500자 이하로 준비해 주세요.', RETRY: '원격 저장 확인에 실패했습니다. 실패 단계 확인이 필요합니다.' };
 export async function pilotPost(form: FormData, transport: typeof fetch = fetch) {
   const response = await transport(endpoint, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
   const result = await response.json();
-  if (!response.ok) throw new Error(messages[result.error] ?? '저장 또는 조회 실패. 로컬 원본은 유지됩니다.');
+  if (!response.ok) {
+    const stage = diagnosticCodes.includes(result.diagnostic) ? ` [${result.diagnostic}]` : '';
+    const request = validRequestId(result.requestId) ? ` 요청 ${result.requestId}` : '';
+    const evidence = result.remote ? ` 기존 검증 이력: 파일 ${result.remote.file === 'CONFIRMED' ? '확인됨' : '미확인'} · 행 ${result.remote.row === 'CONFIRMED' ? '확인됨' : '미확인'}.` : '';
+    throw new Error((messages[result.error] ?? '저장 또는 조회 실패. 로컬 원본은 유지됩니다.') + stage + request + evidence + ' 복구 정보와 원본은 보존됩니다. 원격 대조 전 삭제·재전송하지 마세요.');
+  }
   return result;
 }
 export async function pilotStatus(userId: string) {

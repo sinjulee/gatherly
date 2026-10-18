@@ -33,7 +33,7 @@ test('distributed vault SQL denies public access and fences concurrent workers; 
     const key=randomBytes(32), first=new SupabaseVault(rpc,key), second=new SupabaseVault(rpc,key);
     await first.locked(A,async(state,save)=>{
       state.resources.fixture={id:'private-reference'}; await save();
-      await assert.rejects(()=>second.locked(A,async()=>{}),/BUSY/);
+      await assert.rejects(()=>second.locked(A,async()=>{}), (e: unknown) => (e as { diagnostic?: string }).diagnostic === 'VAULT_CLAIM_FAILED');
       await assert.rejects(()=>rpc.call('g2_vault_save',{p_user:A,p_token:B,p_revision:1,p_ciphertext:'forged'}),/STALE_LOCK/);
     });
     await second.locked(A,async state=>assert.equal(state.resources.fixture.id,'private-reference'));

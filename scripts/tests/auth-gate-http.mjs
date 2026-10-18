@@ -193,7 +193,9 @@ try {
   assert.equal(exchanges, 1);
   for (const identity of [undefined, cookie(denied), cookie(approved)]) {
     const remote = await status('/api/v2/storage-test', 503, identity, 'POST');
-    assert.deepEqual(await remote.json(), { error: 'DISABLED' });
+    const body = await remote.json();
+    assert.match(body.requestId, /^[0-9a-f-]{36}$/);
+    assert.deepEqual(body, { error: 'DISABLED', diagnostic: 'UNCLASSIFIED_FAILURE', requestId: body.requestId, remote: { file: 'UNKNOWN', row: 'UNKNOWN' } });
   }
   console.log(JSON.stringify({ result: 'PASS', httpChecks: checks, consentUIEnabled, actualGoogleWrites: 0, fixtureOnly: true }));
   if (process.env.AUTH_GATE_MOBILE_UI === '1') await (await import('./v2-mobile-browser.mjs')).checkMobileUI(base, cookie(approved));

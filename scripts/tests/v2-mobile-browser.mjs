@@ -16,7 +16,7 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
     const target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find(row => row.type === 'page');
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve,reject) => { socket.addEventListener('open',resolve,{once:true}); socket.addEventListener('error',reject,{once:true}); });
-    let sequence=0, uploads=0, acceptDelete=false; const pending=new Map(), errors=[];
+    let sequence=0, uploads=0, failUploadOnce=true, acceptDelete=false; const pending=new Map(), errors=[];
     const command = (method,params={}) => new Promise((resolve,reject) => {
       const id=++sequence; const timer=setTimeout(()=>{pending.delete(id);reject(new Error('CDP timeout '+method));},15000);
       pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));
@@ -28,7 +28,9 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
       if(m.method==='Fetch.requestPaused') {
         if(pilot && m.params.request.url===base+'/api/v2/storage-test') {
           uploads++;
-          setTimeout(()=>void command('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({done:true,offset:0})).toString('base64')}),250);
+          const failed = failUploadOnce; failUploadOnce = false;
+          const body = failed ? {error:'RETRY',diagnostic:'DRIVE_CHUNK_TRANSFER_FAILED',requestId:'11111111-1111-4111-8111-111111111111',remote:{file:'UNKNOWN',row:'UNKNOWN'}} : {done:true,offset:0};
+          setTimeout(()=>void command('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:failed?503:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify(body)).toString('base64')}),250);
           return;
         }
         const local=m.params.request.url.startsWith(base+'/') || /^(blob:|data:)/.test(m.params.request.url);
@@ -40,6 +42,7 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
     const evaluate=async expression=>{const r=await command('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,'UI evaluation failed');return r.result.value;};
     const wait=async expression=>{for(let i=0;i<100;i++){if(await evaluate(expression))return;await pause(50);}throw new Error('UI condition timed out');};
     const touch = async selector => {
+      await wait(`!!document.querySelector(${JSON.stringify(selector)})`);
       const box=await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e || e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};})()`);
       assert(box.hit,'Touch target covered');assert(box.w>=48&&box.h>=48);
       await command('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x,y:box.y}]});
@@ -91,17 +94,26 @@ export async function checkMobileUI(base, sessionCookie, pilot = false) {
           assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),1);
           acceptDelete=true;await touch('[aria-label="photo 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===0");
           await seed(['photo','audio','note']);await wait("!document.querySelector('[data-pilot-upload]').disabled");
+          acceptDelete=false;await touch('[aria-label="audio 로컬 삭제"]');assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),3);
+          acceptDelete=true;await touch('[aria-label="audio 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===2");
+          await seed(['audio']);await wait("!document.querySelector('[data-pilot-upload]').disabled");
           await touch('[aria-label="note 로컬 삭제"]');await wait("document.querySelector('[data-pilot-upload]').disabled && document.querySelector('#pilot-upload-reasons').textContent.includes('메모 없음')");
           await seed(['note']);await wait("!document.querySelector('[data-pilot-upload]').disabled");
           await touch('[data-pilot-upload]');await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('업로드 또는')");
+          await wait("document.body.textContent.includes('DRIVE_CHUNK_TRANSFER_FAILED') && document.body.textContent.includes('11111111-1111-4111-8111-111111111111')");
+          assert(await evaluate("document.body.textContent.includes('원격 대조 전') && document.documentElement.scrollWidth <= innerWidth"));
+          assert.equal(uploads,1);assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),3);
+          await wait("!document.querySelector('[data-pilot-upload]').disabled");
+          await touch('[data-pilot-upload]');
           await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('이미 업로드 완료')");
-          assert.equal(uploads,3);assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));
-          await touch('[data-pilot-upload]');assert.equal(uploads,3);
+          assert.equal(uploads,4);assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));
+          await touch('[data-pilot-upload]');assert.equal(uploads,4);
           assert.equal(await evaluate("document.querySelectorAll('[data-local-card]').length"),3);
           assert(await evaluate("[...document.querySelectorAll('[data-local-card]')].every(e=>e.textContent.includes('원격 교체 불가'))"));
           await touch('[aria-label="photo 로컬 삭제"]');await wait("document.querySelectorAll('[data-local-card]').length===2");
           await seed(['photo']);await wait("document.querySelector('#pilot-upload-reasons').textContent.includes('원격 교체')");
-          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));assert.equal(uploads,3);
+          assert(await evaluate("document.querySelector('[data-pilot-upload]').disabled"));assert.equal(uploads,4);
+
         }
         if(width===390){const shot=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});await writeFile(path.join(profile,route.replaceAll('/','_')+'.png'),Buffer.from(shot.data,'base64'));}
         pages++;

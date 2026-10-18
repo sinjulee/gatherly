@@ -113,7 +113,7 @@ test('reviewed RPC works with current encrypted adapter and excludes a second re
     const key = randomBytes(32), a = new SupabaseVault(rpc, key, 'production'), b = new SupabaseVault(rpc, key, 'production');
     await a.locked(user, async (state, save) => {
       state.oauth = { accessToken: 'fixture-access', refreshToken: 'fixture-refresh', expiresAt: 0 }; await save();
-      await assert.rejects(() => b.locked(user, async () => assert.fail('second worker entered')), /BUSY/);
+      await assert.rejects(() => b.locked(user, async () => assert.fail('second worker entered')), (e: unknown) => (e as { diagnostic?: string }).diagnostic === 'VAULT_CLAIM_FAILED');
       const api = new GoogleApi({ clientId: 'fixture', clientSecret: 'fixture', redirectUri: 'https://fixture.invalid' }, state, save, async url => url.endsWith('/token') ? Response.json({ access_token: 'fixture-new', expires_in: 3600 }) : Response.json({}));
       await api.request('https://www.googleapis.com/drive/v3/files?fields=files(id)');
     });
@@ -156,6 +156,6 @@ test('refresh response followed by stale save cannot authorize a file operation 
     if (url.endsWith('/token')) return Response.json({ access_token: 'new', expires_in: 3600 });
     files++; return Response.json({});
   });
-  for (let i = 0; i < 2; i++) await assert.rejects(() => api.request('https://www.googleapis.com/drive/v3/files'), /STALE/);
+  for (let i = 0; i < 2; i++) await assert.rejects(() => api.request('https://www.googleapis.com/drive/v3/files'), (e: unknown) => (e as { diagnostic?: string }).diagnostic === 'VAULT_SAVE_FAILED');
   assert.equal(state.oauth.accessToken, 'old'); assert.equal(files, 0); assert.equal(saves, 2);
 });

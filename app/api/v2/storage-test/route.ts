@@ -1,14 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import { session } from '@/lib/gatherly-2/auth/server';
-import { sameOrigin, requireAppOrigin, requireOwner, failure, IntegrationError } from '@/lib/gatherly-2/integration/config';
+import { sameOrigin, requireAppOrigin, requireOwner, failure, IntegrationError, type FailureContext } from '@/lib/gatherly-2/integration/config';
 import { requireWrites, googleConfig, vault } from '@/lib/gatherly-2/integration/runtime';
 import { requireWriteUser } from '@/lib/gatherly-2/integration/write-access';
 import { scopedOwner } from '@/lib/gatherly-2/integration/environment';
 import { GoogleApi } from '@/lib/gatherly-2/integration/google';
-import { PilotStorage, pilotData, pilotRecord, pilotTransport } from '@/lib/gatherly-2/integration/pilot-storage';
+import { PilotStorage, pilotData, pilotRecord, pilotTransport, pilotRemoteEvidence } from '@/lib/gatherly-2/integration/pilot-storage';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 /** Limit actual bytes, not just a client-controlled Content-Length header. */
 export async function POST(request: Request) {
+  const diagnostic: FailureContext = { requestId: randomUUID(), remote: { file: 'UNKNOWN', row: 'UNKNOWN' } };
   try {
     sameOrigin(request); requireAppOrigin(request); requireWrites();
     const { user } = await session(); requireWriteUser(user.id);
@@ -34,8 +36,12 @@ export async function POST(request: Request) {
       const data = pilotData(state);
       const api = new GoogleApi(googleConfig(), state, save, pilotTransport(data, save));
       const storage = new PilotStorage(api, data, save, scopedOwner(user.id));
-      return check ? { states: await storage.status() } : storage.upload(slot!, offset, chunk instanceof File ? chunk : undefined);
+      try {
+        return check ? { states: await storage.status() } : await storage.upload(slot!, offset, chunk instanceof File ? chunk : undefined);
+      } finally {
+        if (slot) diagnostic.remote = pilotRemoteEvidence(data, slot);
+      }
     });
     return Response.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
-  } catch (error) { return failure(error); }
+  } catch (error) { return failure(error, true, diagnostic); }
 }

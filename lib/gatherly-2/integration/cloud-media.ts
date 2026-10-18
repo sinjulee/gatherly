@@ -1,7 +1,7 @@
 import { GoogleStorage, digest, type RemoteRecord } from './storage';
 import { GoogleApi } from './google';
 import type { VaultData } from './vault';
-import { IntegrationError } from './config';
+import { IntegrationError, atOperation } from './config';
 import { MEDIA_CHUNK_BYTES } from './platform';
 export type MediaInfo = { size: number; mimeType: string; sha256: string };
 export function mediaInfo(value: unknown): MediaInfo {
@@ -29,43 +29,43 @@ export class CloudMediaStorage {
     }
     const fileUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(ledger.fileId)}?fields=id,ownedByMe,trashed,size,sha256Checksum,appProperties`;
     const complete = async () => {
-      const file = await this.api.json<{ ownedByMe: boolean; trashed: boolean; size: string; sha256Checksum?: string; appProperties?: { payloadHash?: string } }>(fileUrl);
-      if (!file.sha256Checksum) throw new IntegrationError('RETRY', 503);
-      if (!file.ownedByMe || file.trashed || Number(file.size) !== info.size || file.sha256Checksum !== info.sha256 || file.appProperties?.payloadHash !== hash) throw new IntegrationError('CONFLICT', 409);
+      const file = await atOperation('DRIVE_UPLOAD_VERIFY_FAILED', () => this.api.json<{ ownedByMe: boolean; trashed: boolean; size: string; sha256Checksum?: string; appProperties?: { payloadHash?: string } }>(fileUrl));
+      if (!file.sha256Checksum) throw new IntegrationError('RETRY', 503, 'DRIVE_UPLOAD_VERIFY_FAILED');
+      if (!file.ownedByMe || file.trashed || Number(file.size) !== info.size || file.sha256Checksum !== info.sha256 || file.appProperties?.payloadHash !== hash) throw new IntegrationError('CONFLICT', 409, 'DRIVE_UPLOAD_VERIFY_FAILED');
       ledger.driveVerified = true; await this.save();
       const result = await storage.sync(record, undefined, { fileId: ledger.fileId!, sha256: info.sha256, mimeType: info.mimeType });
       return { offset: info.size, done: true, driveFileId: result.driveFileId };
     };
-    const existing = await this.api.request(fileUrl);
+    const existing = await atOperation('DRIVE_UPLOAD_STATUS_FAILED', () => this.api.request(fileUrl));
     if (existing.ok) return complete();
-    if (existing.status !== 404) throw new IntegrationError('RETRY', 503);
+    if (existing.status !== 404) throw new IntegrationError('RETRY', 503, 'DRIVE_UPLOAD_STATUS_FAILED', existing.status);
     let remoteOffset = 0;
     if (ledger.uploadUrl) {
-      const progress = await this.api.request(ledger.uploadUrl, { method: 'PUT', headers: { 'Content-Length': '0', 'Content-Range': `bytes */${info.size}` } });
+      const progress = await atOperation('DRIVE_UPLOAD_STATUS_FAILED', () => this.api.request(ledger.uploadUrl!, { method: 'PUT', headers: { 'Content-Length': '0', 'Content-Range': `bytes */${info.size}` } }));
       if (progress.ok) return complete();
       if ([404,410].includes(progress.status)) { delete ledger.uploadUrl; await this.save(); }
       else if (progress.status === 308) {
         const range = progress.headers.get('range'); remoteOffset = range ? Number(range.match(/^bytes=0-(\d+)$/)?.[1]) + 1 : 0;
-        if (!Number.isSafeInteger(remoteOffset) || remoteOffset < 0 || remoteOffset >= info.size) throw new IntegrationError('CONFLICT', 409);
-      } else throw new IntegrationError('RETRY', 503);
+        if (!Number.isSafeInteger(remoteOffset) || remoteOffset < 0 || remoteOffset >= info.size) throw new IntegrationError('CONFLICT', 409, 'DRIVE_UPLOAD_STATUS_FAILED', progress.status);
+      } else throw new IntegrationError('RETRY', 503, 'DRIVE_UPLOAD_STATUS_FAILED', progress.status);
     }
     if (!ledger.uploadUrl) {
       const { folder } = await storage.workspace(record.fieldDayId);
       const images = info.mimeType.startsWith('image/');
       const parent = await storage.resource(`${images ? 'photos' : 'recordings'}:${record.fieldDayId}`, images ? 'Photos' : 'Recordings', 'application/vnd.google-apps.folder', folder);
-      const response = await this.api.request('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id', {
+      const response = await atOperation('DRIVE_SESSION_INIT_FAILED', () => this.api.request('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Upload-Content-Type': info.mimeType, 'X-Upload-Content-Length': String(info.size) },
         body: JSON.stringify({ id: ledger.fileId, name: record.title || '현장 미디어', parents: [parent], appProperties: { payloadHash: hash, clientAssetId: record.id } }),
-      });
-      if (!response.ok || !response.headers.get('location')) throw new IntegrationError('RETRY', 503);
+      }));
+      if (!response.ok || !response.headers.get('location')) throw new IntegrationError('RETRY', 503, 'DRIVE_SESSION_INIT_FAILED', response.status);
       ledger.uploadUrl = response.headers.get('location')!; await this.save();
     }
     if (!chunk || offset !== remoteOffset) return { offset: remoteOffset, done: false };
-    const response = await this.api.request(ledger.uploadUrl, { method: 'PUT', headers: { 'Content-Type': info.mimeType, 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${info.size}` }, body: chunk });
+    const response = await atOperation('DRIVE_CHUNK_TRANSFER_FAILED', () => this.api.request(ledger.uploadUrl!, { method: 'PUT', headers: { 'Content-Type': info.mimeType, 'Content-Range': `bytes ${offset}-${offset + chunk.size - 1}/${info.size}` }, body: chunk }));
     if (response.ok) return complete();
-    if (response.status !== 308) throw new IntegrationError('RETRY', 503);
+    if (response.status !== 308) throw new IntegrationError('RETRY', 503, 'DRIVE_CHUNK_TRANSFER_FAILED', response.status);
     const range = response.headers.get('range'), acknowledged = range ? Number(range.match(/^bytes=0-(\d+)$/)?.[1]) + 1 : 0;
-    if (!Number.isSafeInteger(acknowledged) || acknowledged <= offset || acknowledged > offset + chunk.size) throw new IntegrationError('RETRY', 503);
+    if (!Number.isSafeInteger(acknowledged) || acknowledged <= offset || acknowledged > offset + chunk.size) throw new IntegrationError('RETRY', 503, 'DRIVE_CHUNK_TRANSFER_FAILED', response.status);
     return { offset: acknowledged, done: false };
   }
 }

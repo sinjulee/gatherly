@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { GoogleApi } from './google';
-import { IntegrationError } from './config';
+import { IntegrationError, atOperation } from './config';
 import type { VaultData, Ledger } from './vault';
 export type RemoteRecord = { id: string; fieldDayId: string; exhibitorId: string; title: string; text?: string; revision: number; kind: 'NOTE' | 'MEDIA' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
@@ -23,7 +23,7 @@ export class GoogleStorage {
     if (found.files.length > 1) throw new IntegrationError('CONFLICT', 409);
     if (found.files.length === 1) { this.state.resources[key] = { id: found.files[0].id }; await this.save(); return found.files[0].id; }
     // If a create response was lost, wait for reconciliation; NEVER issue another create.
-    if (saved?.pending) throw new IntegrationError('RETRY', 503);
+    if (saved?.pending) throw new IntegrationError('RETRY', 503, 'RESOURCE_RECONCILIATION_REQUIRED');
     this.state.resources[key] = { pending: true }; await this.save();
     const file = await this.api.json<{ id: string }>(`${DRIVE}/files?fields=id`, json({ name, mimeType, ...(parent ? { parents: [parent] } : {}), appProperties: { gatherlyKey: marker } }));
     this.state.resources[key] = { id: file.id }; await this.save(); return file.id;
@@ -32,9 +32,9 @@ export class GoogleStorage {
     const root = await this.resource('root', 'Gatherly', 'application/vnd.google-apps.folder');
     const folder = await this.resource(`field:${fieldDayId}`, fieldDayId, 'application/vnd.google-apps.folder', root);
     const sheet = await this.resource(`sheet:${fieldDayId}`, 'Gatherly 현장 기록', 'application/vnd.google-apps.spreadsheet', folder);
-    const meta = await this.api.json<{ sheets: { properties: { title: string } }[] }>(`${SHEETS}/${sheet}?fields=sheets.properties.title`);
+    const meta = await atOperation('SHEETS_INITIALIZATION_FAILED', () => this.api.json<{ sheets: { properties: { title: string } }[] }>(`${SHEETS}/${sheet}?fields=sheets.properties.title`));
     const missing = ['notes', 'assets'].filter(name => !meta.sheets.some(s => s.properties.title === name));
-    if (missing.length) await this.api.json(`${SHEETS}/${sheet}:batchUpdate`, json({ requests: missing.map(title => ({ addSheet: { properties: { title, gridProperties: { rowCount: 10000, columnCount: columns.length } } } })) }));
+    if (missing.length) await atOperation('SHEETS_INITIALIZATION_FAILED', () => this.api.json(`${SHEETS}/${sheet}:batchUpdate`, json({ requests: missing.map(title => ({ addSheet: { properties: { title, gridProperties: { rowCount: 10000, columnCount: columns.length } } } })) })));
     return { folder, sheet };
   }
   async upload(record: RemoteRecord, blob: Blob, folder: string, ledger: Ledger) {
@@ -97,10 +97,10 @@ export class GoogleStorage {
     }
     const tab = record.kind === 'NOTE' ? 'notes' : 'assets';
     const url = `${SHEETS}/${workspace.sheet}/values/${tab}!A:I`;
-    const read = await this.api.json<{ values?: string[][] }>(url);
+    const read = await atOperation('SHEETS_ROW_WRITE_FAILED', () => this.api.json<{ values?: string[][] }>(url));
     const rows = read.values ?? [];
-    if (rows.length && JSON.stringify(rows[0]) !== JSON.stringify(columns)) throw new IntegrationError('CONFLICT', 409);
-    if (!rows.length) await this.api.json(`${SHEETS}/${workspace.sheet}/values/${tab}!A1:I1?valueInputOption=RAW`, { ...json({ values: [columns] }), method: 'PUT' });
+    if (rows.length && JSON.stringify(rows[0]) !== JSON.stringify(columns)) throw new IntegrationError('CONFLICT', 409, 'SHEETS_HEADER_FAILED');
+    if (!rows.length) await atOperation('SHEETS_HEADER_FAILED', () => this.api.json(`${SHEETS}/${workspace.sheet}/values/${tab}!A1:I1?valueInputOption=RAW`, { ...json({ values: [columns] }), method: 'PUT' }));
     const matching = rows.flatMap((row, i) => row[0] === record.id ? [i] : []);
     if (matching.length > 1) throw new IntegrationError('CONFLICT', 409);
     const values = [record.id, record.fieldDayId, record.exhibitorId, record.title, record.text ?? '', ledger.fileId ?? '', String(record.revision), mutation, hash];
@@ -115,9 +115,9 @@ export class GoogleStorage {
       if (rows[ledger.row - 1]?.some(Boolean)) throw new IntegrationError('CONFLICT', 409);
     }
     await this.save(); // Reserve exact row before PUT; response loss cannot duplicate an append.
-    await this.api.json(`${SHEETS}/${workspace.sheet}/values/${tab}!A${ledger.row}:I${ledger.row}?valueInputOption=RAW`, { ...json({ values: [values] }), method: 'PUT' });
-    const verified = await this.api.json<{ values?: string[][] }>(`${SHEETS}/${workspace.sheet}/values/${tab}!A${ledger.row}:I${ledger.row}`);
-    if (JSON.stringify(verified.values?.[0]) !== JSON.stringify(values)) throw new IntegrationError('CONFLICT', 409);
+    await atOperation('SHEETS_ROW_WRITE_FAILED', () => this.api.json(`${SHEETS}/${workspace.sheet}/values/${tab}!A${ledger.row}:I${ledger.row}?valueInputOption=RAW`, { ...json({ values: [values] }), method: 'PUT' }));
+    const verified = await atOperation('SHEETS_ROW_VERIFY_FAILED', () => this.api.json<{ values?: string[][] }>(`${SHEETS}/${workspace.sheet}/values/${tab}!A${ledger.row}:I${ledger.row}`));
+    if (JSON.stringify(verified.values?.[0]) !== JSON.stringify(values)) throw new IntegrationError('CONFLICT', 409, 'SHEETS_ROW_VERIFY_FAILED');
     ledger.done = true; this.state.records[key] = { hash: rowHash, revision: record.revision, done: true }; await this.save();
     return { driveFileId: ledger.fileId, revision: record.revision };
   }

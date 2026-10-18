@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { IntegrationError } from './config';
+import { IntegrationError, atStage, classified, type Diagnostic } from './config';
 import type { VaultData } from './vault';
 export type Transport = (input: string, init?: RequestInit) => Promise<Response>;
 export const FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -18,14 +18,16 @@ export function consumeState(data: VaultData, state: string, now = Date.now()) {
 export class GoogleApi {
   constructor(private config: GoogleConfig, private state: VaultData, private save: () => Promise<void>, private transport: Transport = fetch, private now = Date.now) {}
   private async token(values: Record<string, string>) {
+    return atStage(values.grant_type === 'refresh_token' ? 'GOOGLE_TOKEN_REFRESH_FAILED' : 'GOOGLE_TOKEN_EXCHANGE_FAILED', async () => {
     const response = await this.transport('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: this.config.clientId, client_secret: this.config.clientSecret, ...values }), signal: AbortSignal.timeout(20_000) });
     if (!response.ok) {
       const retryable = response.status === 429 || response.status >= 500;
-      throw new IntegrationError(retryable ? 'RETRY' : 'REAUTH', retryable ? 503 : 401);
+      throw new IntegrationError(retryable ? 'RETRY' : 'REAUTH', retryable ? 503 : 401, undefined, response.status);
     }
     const result = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
     if (!result.access_token || !result.expires_in) throw new IntegrationError('REAUTH', 401);
     return result;
+    });
   }
   async exchange(code: string, verifier: string) {
     const token = await this.token({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: this.config.redirectUri });
@@ -46,22 +48,25 @@ export class GoogleApi {
     if (!force && current.expiresAt > this.now() + 60_000) return current.accessToken;
     const next = await this.token({ grant_type: 'refresh_token', refresh_token: current.refreshToken });
     this.state.oauth = { refreshToken: next.refresh_token ?? current.refreshToken, accessToken: next.access_token!, expiresAt: this.now() + next.expires_in! * 1000 };
-    try { await this.save(); }
+    try { await atStage('VAULT_SAVE_FAILED', this.save); }
     catch (error) { this.state.oauth = current; throw error; }
     return next.access_token!;
   }
   async request(url: string, init: RequestInit = {}, retry = true): Promise<Response> {
     const target = new URL(url);
     if (target.protocol !== 'https:' || !['www.googleapis.com', 'sheets.googleapis.com'].includes(target.hostname)) throw new IntegrationError('FORBIDDEN', 403);
+    const stage: Diagnostic = target.hostname === 'sheets.googleapis.com' ? (['POST', 'PUT', 'PATCH'].includes(init.method ?? 'GET') ? 'SHEETS_WRITE_FAILED' : 'SHEETS_READ_FAILED') : target.pathname.includes('/upload/') ? 'DRIVE_UPLOAD_FAILED' : init.method === 'POST' ? 'DRIVE_CREATE_FAILED' : 'DRIVE_READ_FAILED';
+    return atStage(stage, async () => {
     const response = await this.transport(url, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), Authorization: `Bearer ${await this.access()}` }, signal: AbortSignal.timeout(30_000), redirect: 'error' });
     if (response.status === 401 && retry) { await this.access(true); return this.request(url, init, false); }
-    if (response.status === 401 || response.status === 403) throw new IntegrationError('REAUTH', 401);
-    if (response.status === 429 || response.status >= 500) throw new IntegrationError('RETRY', 503);
+    if (response.status === 401 || response.status === 403) throw new IntegrationError('REAUTH', 401, stage, response.status);
+    if (response.status === 429 || response.status >= 500) throw new IntegrationError('RETRY', 503, stage, response.status);
     return response;
+    });
   }
   async json<T>(url: string, init: RequestInit = {}): Promise<T> {
     const r = await this.request(url, init);
-    if (!r.ok) throw new IntegrationError(r.status === 404 ? 'REAUTH' : 'CONFLICT', r.status === 404 ? 401 : 409);
-    return r.json() as Promise<T>;
+    if (!r.ok) throw classified(new IntegrationError(r.status === 404 ? 'REAUTH' : 'CONFLICT', r.status === 404 ? 401 : 409), url.includes('sheets.googleapis.com') ? (init.method ? 'SHEETS_WRITE_FAILED' : 'SHEETS_READ_FAILED') : (init.method ? 'DRIVE_CREATE_FAILED' : 'DRIVE_READ_FAILED'), r.status);
+    return atStage(url.includes('sheets.googleapis.com') ? 'SHEETS_READ_FAILED' : 'DRIVE_READ_FAILED', () => r.json() as Promise<T>);
   }
 }
