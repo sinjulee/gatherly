@@ -22,7 +22,7 @@ export function pilotRecord(value: unknown, media?: unknown): Slot & { kind: Pil
   return { kind, record, media: info, hash: digest(JSON.stringify(record) + JSON.stringify(info ?? null)) };
 }
 /** Evidence of prior verification, never inferred from an allocated ID or pending resource. */
-export function pilotRemoteEvidence(data: PilotData, slot: ReturnType<typeof pilotRecord>): RemoteEvidence {
+export function pilotRemoteEvidence(data: Pick<PilotData, 'records'>, slot: ReturnType<typeof pilotRecord>): RemoteEvidence {
   const record = slot.record;
   const ledger = data.records[`${JSON.stringify([record.fieldDayId, record.exhibitorId, record.id])}:${record.revision}`];
   return { file: ledger?.driveVerified ? 'CONFIRMED' : 'UNKNOWN', row: ledger?.done ? 'CONFIRMED' : 'UNKNOWN' };
@@ -82,14 +82,24 @@ export class PilotStorage {
   private async verifyRemote(kind: PilotKind) {
     const slot = this.data.slots[kind];
     if (!slot) return 'NOT_UPLOADED' as const;
+    return verifyStoredRecord(this.api, this.data, slot);
+  }
+  async status() {
+    if (this.data.checks >= 10) throw new IntegrationError('LIMIT', 429);
+    this.data.checks++; await this.save();
+    return { note: await this.verify('note'), photo: await this.verify('photo'), audio: await this.verify('audio') };
+  }
+}
+
+export async function verifyStoredRecord(api: GoogleApi, data: Pick<PilotData, 'records' | 'resources'>, slot: Slot) {
     const { record, media } = slot;
     const key = JSON.stringify([record.fieldDayId, record.exhibitorId, record.id]);
-    const ledger = this.data.records[`${key}:${record.revision}`];
+    const ledger = data.records[`${key}:${record.revision}`];
     if (!ledger?.done || !ledger.row) return ledger?.driveVerified ? 'SHEET_PENDING' as const : 'PENDING' as const;
-    const sheet = this.data.resources[`sheet:${PILOT_FIELD}`]?.id;
+    const sheet = data.resources[`sheet:${PILOT_FIELD}`]?.id;
     if (!sheet) throw new IntegrationError('CONFLICT', 409);
     const owned = async (id: string) => {
-      const file = await this.api.json<{ ownedByMe: boolean; trashed?: boolean; size?: string; sha256Checksum?: string; appProperties?: { payloadHash?: string } }>(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=ownedByMe,trashed,size,sha256Checksum,appProperties`);
+      const file = await api.json<{ ownedByMe: boolean; trashed?: boolean; size?: string; sha256Checksum?: string; appProperties?: { payloadHash?: string } }>(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=ownedByMe,trashed,size,sha256Checksum,appProperties`);
       if (!file.ownedByMe || file.trashed) throw new IntegrationError('CONFLICT', 409);
       return file;
     };
@@ -100,14 +110,8 @@ export class PilotStorage {
       if (Number(file.size) !== media.size || file.sha256Checksum !== media.sha256 || file.appProperties?.payloadHash !== ledger.hash) throw new IntegrationError('CONFLICT', 409, 'DRIVE_UPLOAD_VERIFY_FAILED');
     }
     const tab = media ? 'assets' : 'notes';
-    const row = await atOperation('SHEETS_ROW_VERIFY_FAILED', () => this.api.json<{ values?: string[][] }>(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheet)}/values/${tab}!A${ledger.row}:I${ledger.row}`));
+    const row = await atOperation('SHEETS_ROW_VERIFY_FAILED', () => api.json<{ values?: string[][] }>(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheet)}/values/${tab}!A${ledger.row}:I${ledger.row}`));
     const expected = [record.id, record.fieldDayId, record.exhibitorId, record.title, record.text ?? '', ledger.fileId ?? '', String(record.revision), `${key}:${record.revision}`, ledger.hash];
     if (JSON.stringify(row.values?.[0]) !== JSON.stringify(expected)) throw new IntegrationError('CONFLICT', 409, 'SHEETS_ROW_VERIFY_FAILED');
     return 'VERIFIED' as const;
-  }
-  async status() {
-    if (this.data.checks >= 10) throw new IntegrationError('LIMIT', 429);
-    this.data.checks++; await this.save();
-    return { note: await this.verify('note'), photo: await this.verify('photo'), audio: await this.verify('audio') };
-  }
 }

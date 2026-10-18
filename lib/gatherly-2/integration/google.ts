@@ -33,10 +33,11 @@ export class GoogleApi {
     const token = await this.token({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: this.config.redirectUri });
     if (!token.refresh_token || !token.scope?.split(' ').includes(FILE_SCOPE)) throw new IntegrationError('REAUTH', 401);
     // Switching Google accounts with existing remote IDs would misroute private data.
-    if (Object.keys(this.state.resources).length) {
+    const existingResources = [...Object.values(this.state.resources), ...Object.values(this.state.devStorage?.resources ?? {})];
+    if (existingResources.length) {
       const old = this.state.oauth;
       this.state.oauth = { refreshToken: token.refresh_token, accessToken: token.access_token!, expiresAt: this.now() + token.expires_in! * 1000 };
-      try { for (const resource of Object.values(this.state.resources)) if (resource.id) await this.request(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(resource.id)}?fields=id,ownedByMe`).then(async r => { if (!(await r.json()).ownedByMe) throw new IntegrationError('FORBIDDEN', 403); }); }
+      try { for (const resource of existingResources) if (resource.id) await this.request(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(resource.id)}?fields=id,ownedByMe`).then(async r => { if (!(await r.json()).ownedByMe) throw new IntegrationError('FORBIDDEN', 403); }); }
       catch (error) { this.state.oauth = old; throw error; }
     }
     this.state.oauth = { refreshToken: token.refresh_token, accessToken: token.access_token!, expiresAt: this.now() + token.expires_in! * 1000 };

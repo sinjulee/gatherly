@@ -6,8 +6,8 @@ import type { PilotSessionView } from './pilot-session';
 import { pilotKind } from '../pilot-ui';
 const endpoint = '/api/v2/storage-test';
 const messages: Record<string, string> = { SHEET_PENDING: 'Drive 파일은 확인했지만 Sheets 반영은 미완료입니다. 기존 파일을 사용하는 복구 확인이 필요합니다.', DISABLED: '원격 저장이 비활성입니다.', FORBIDDEN: '이 계정은 쓰기 승인이 없습니다.', UNAUTHORIZED: '다시 로그인해 주세요.', REAUTH: 'Google 연결 또는 Drive·Sheets API 설정을 확인해 주세요.', LIMIT: '테스트 요청 한도에 도달했습니다. 운영자 확인이 필요합니다.', CONFLICT: '예약한 자료와 내용 또는 원격 기록이 다릅니다. 원본을 유지하고 확인해 주세요.', INVALID: '사진·녹음은 각각 5MiB 이하, 메모는 500자 이하로 준비해 주세요.', RETRY: '원격 저장 확인에 실패했습니다. 실패 단계 확인이 필요합니다.' };
-export async function pilotPost(form: FormData, transport: typeof fetch = fetch) {
-  const response = await transport(endpoint, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
+export async function pilotPost(form: FormData, transport: typeof fetch = fetch, target = endpoint) {
+  const response = await transport(target, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
   const result = await response.json();
   if (!response.ok) {
     const stage = diagnosticCodes.includes(result.diagnostic) ? ` [${result.diagnostic}]` : '';
@@ -41,7 +41,7 @@ export async function syncPilot(workspace: BrowserWorkspace, userId: string, tra
       if (row.state === 'SYNCED') { done++; continue; }
       const item = await workspace.transfer(row);
       try {
-        await upload(item, userId, transport, run);
+        await uploadStorageItem(item, userId, transport, run);
         await workspace.finishTransfer({ ...item, state: 'SYNCED', attempts: item.attempts + 1 }); done++;
       } catch (error) {
         await workspace.finishTransfer({ ...item, state: 'FAILED_RETRYABLE', attempts: item.attempts + 1 });
@@ -51,7 +51,7 @@ export async function syncPilot(workspace: BrowserWorkspace, userId: string, tra
     return `원격 재조회까지 ${done}건 확인했습니다. 로컬 원본은 그대로 보관합니다.`;
   });
 }
-async function upload(item: SyncItem, owner: string, transport: typeof fetch, run?: PilotSessionView) {
+export async function uploadStorageItem(item: SyncItem, owner: string, transport: typeof fetch, run?: PilotSessionView, target = endpoint) {
   const blob = item.blob;
   const hash = blob ? [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map(n => n.toString(16).padStart(2, '0')).join('') : undefined;
   let offset = 0, prepared = false;
@@ -61,7 +61,7 @@ async function upload(item: SyncItem, owner: string, transport: typeof fetch, ru
     if (blob) form.set('media', JSON.stringify({ size: blob.size, mimeType: blob.type, sha256: hash }));
     form.set('offset', String(offset));
     if (blob && prepared && offset < blob.size) form.set('chunk', blob.slice(offset, offset + 1024 * 1024, blob.type), 'chunk');
-    const result = await pilotPost(form, transport);
+    const result = await pilotPost(form, transport, target);
     if (result.done === true) return;
     if (!blob || !Number.isSafeInteger(result.offset) || result.offset < 0 || result.offset > blob.size) throw new Error('원격 전송 위치를 확인하지 못했습니다. 원본은 유지됩니다.');
     offset = result.offset; prepared = true;

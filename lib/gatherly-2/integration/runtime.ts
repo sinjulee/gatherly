@@ -1,3 +1,4 @@
+import { devStorageEnabled, devProfile } from './dev-profile';
 import { requireWriteUser } from './write-access';
 import { environment } from './environment';
 import { isVercel } from './platform';
@@ -6,16 +7,19 @@ import { FileVault } from './vault';
 import { GoogleApi, consumeState, type GoogleConfig } from './google';
 import { IntegrationError, origin, required, requireEnabled, requireConsent } from './config';
 export function googleConfig(): GoogleConfig {
+  if (devStorageEnabled()) devProfile();
+  const prefix = devStorageEnabled() ? 'GATHERLY_V2_DEV_' : 'GATHERLY_V2_';
   const redirectUri = required('GATHERLY_V2_GOOGLE_REDIRECT_URI');
   if (redirectUri !== `${origin()}/api/v2/google/callback`) throw new IntegrationError('DISABLED', 503);
-  return { clientId: required('GATHERLY_V2_GOOGLE_CLIENT_ID'), clientSecret: required('GATHERLY_V2_GOOGLE_CLIENT_SECRET'), redirectUri };
+  return { clientId: required(prefix + 'GOOGLE_CLIENT_ID'), clientSecret: required(prefix + 'GOOGLE_CLIENT_SECRET'), redirectUri };
 }
 export function vault() {
   requireEnabled();
   const namespace = environment();
-  const key = Buffer.from(required('GATHERLY_V2_TOKEN_ENCRYPTION_KEY'), 'base64');
+  const prefix = devStorageEnabled() ? 'GATHERLY_V2_DEV_' : 'GATHERLY_V2_';
+  const key = Buffer.from(required(prefix + 'TOKEN_ENCRYPTION_KEY'), 'base64');
   const backend = process.env.GATHERLY_V2_VAULT_BACKEND ?? (isVercel() ? 'supabase' : 'file');
-  if (backend === 'supabase') return new SupabaseVault(vaultRpc(required('NEXT_PUBLIC_SUPABASE_URL'), required('GATHERLY_V2_SUPABASE_SECRET_KEY')), key, namespace);
+  if (backend === 'supabase') return new SupabaseVault(vaultRpc(required('NEXT_PUBLIC_SUPABASE_URL'), required(prefix + 'SUPABASE_SECRET_KEY')), key, namespace);
   if (backend !== 'file' || isVercel()) throw new IntegrationError('DISABLED', 503);
   return new FileVault(required('GATHERLY_V2_VAULT_DIR'), key);
 }
